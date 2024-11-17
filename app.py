@@ -72,9 +72,6 @@ def chat():
         user_input = request.form['user_input']
         model_choice = request.form['model_choice']
         
-        # Add user message to conversation
-        session['conversation'].append(('user', user_input))
-        
         try:
             # Get response based on selected model
             if model_choice == 'openai':
@@ -86,7 +83,8 @@ def chat():
             else:  # GPT4o
                 response_text = make_api_call(openai_client, "GPT4o", user_input)
 
-            # Add bot response to conversation
+            # Add messages to session
+            session['conversation'].append(('user', user_input))
             session['conversation'].append(('bot', response_text))
             session.modified = True
             
@@ -94,8 +92,6 @@ def chat():
             
         except Exception as e:
             error_message = f"An error occurred: {str(e)}"
-            session['conversation'].append(('bot', error_message))
-            session.modified = True
             return jsonify({'response': error_message})
 
     return render_template('index.html', 

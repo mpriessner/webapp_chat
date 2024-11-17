@@ -167,11 +167,6 @@
     <div class="container">
         <div class="chat-panel">
             <div class="chat-messages">
-                {% for role, message in conversation %}
-                <div class="message {% if role == 'user' %}user-message{% else %}bot-message{% endif %}">
-                    {{ message }}
-                </div>
-                {% endfor %}
             </div>
             <div class="input-form">
                 <select name="model_choice" class="form-control model-select" id="model-select">
@@ -205,17 +200,29 @@
         const getMoleculeBtn = document.getElementById('getMolecule');
         const moleculeImage = document.getElementById('moleculeImage');
         const smilesText = document.getElementById('smilesText');
+        const chatMessages = document.querySelector('.chat-messages');
 
         window.onload = function() {
-            const messages = document.querySelector('.chat-messages');
-            messages.scrollTop = messages.scrollHeight;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
         };
+
+        function appendMessage(content, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.textContent = content;
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
 
         async function sendMessage() {
             const message = messageInput.value.trim();
             const model = modelSelect.value;
             
             if (!message) return;
+
+            // Add user message immediately
+            appendMessage(message, true);
+            messageInput.value = '';
 
             try {
                 const response = await fetch('/', {
@@ -227,17 +234,20 @@
                 });
 
                 if (response.ok) {
-                    messageInput.value = '';
-                    location.reload();
+                    const data = await response.json();
+                    appendMessage(data.response, false);
                 }
             } catch (error) {
                 console.error('Error:', error);
+                appendMessage('An error occurred while sending the message.', false);
             }
         }
 
         function clearChat() {
             fetch('/clear_chat')
-                .then(() => location.reload())
+                .then(() => {
+                    chatMessages.innerHTML = '';
+                })
                 .catch(error => console.error('Error:', error));
         }
 
