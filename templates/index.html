@@ -242,16 +242,19 @@
         }
 
         .visualization-content {
+            position: relative;
             flex: 1;
-            display: flex;
-            flex-direction: column;
             overflow: hidden;
         }
 
         .visualization-panel {
             display: none;
-            flex: 1;
-            overflow: auto;
+            position: absolute;
+            top: 60px;  /* Height of the header */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px;
         }
 
         .visualization-panel.active {
@@ -259,15 +262,43 @@
             flex-direction: column;
         }
 
-        #molecule-panel img {
-            max-width: 100%;
-            height: auto;
-            object-fit: contain;
+        #plot-panel {
+            align-items: center;
+            justify-content: center;
         }
 
-        #plot-panel {
+        #plot-container {
             width: 100%;
             height: 100%;
+        }
+
+        #molecule-panel {
+            align-items: center;
+            justify-content: flex-start;
+        }
+
+        #molecule-image {
+            max-width: 100%;
+            max-height: 350px;
+            object-fit: contain;
+            margin-bottom: 10px;
+        }
+
+        .molecule-info {
+            margin-top: 15px;
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .molecule-info p {
+            margin: 5px 0;
+            word-break: break-all;
+        }
+
+        .molecule-info .label {
+            font-weight: bold;
+            color: #444;
+            margin-right: 5px;
         }
 
         .close-visualization {
@@ -282,13 +313,6 @@
 
         .close-visualization:hover {
             opacity: 1;
-        }
-
-        #smiles-text {
-            margin-top: 10px;
-            word-break: break-all;
-            font-size: 0.9em;
-            color: #666;
         }
     </style>
 </head>
@@ -328,8 +352,11 @@
         </div>
         <div class="visualization-content">
             <div id="molecule-panel" class="visualization-panel active">
-                <img id="molecule-image" style="max-width: 100%; height: auto;">
-                <p id="smiles-text" style="word-break: break-all;"></p>
+                <img id="molecule-image">
+                <div class="molecule-info">
+                    <p><span class="label">SMILES:</span><span id="smiles-text"></span></p>
+                    <p><span class="label">Molecular Weight:</span><span id="molecular-weight"></span> g/mol</p>
+                </div>
             </div>
             <div id="plot-panel" class="visualization-panel">
                 <div id="plot-container"></div>
@@ -413,9 +440,11 @@
             const container = document.getElementById('visualization-container');
             const moleculeImage = document.getElementById('molecule-image');
             const smilesText = document.getElementById('smiles-text');
+            const molecularWeight = document.getElementById('molecular-weight');
 
             moleculeImage.src = 'data:image/png;base64,' + data.image;
-            smilesText.textContent = 'SMILES: ' + data.smiles;
+            smilesText.textContent = data.smiles;
+            molecularWeight.textContent = data.molecular_weight;
 
             // Show container and activate molecule tab
             container.classList.add('active');
@@ -424,12 +453,16 @@
 
         socket.on('graph_response', (data) => {
             const container = document.getElementById('visualization-container');
-
-            Plotly.newPlot('plot-container', data.data, data.layout);
-
-            // Show container and activate plot tab
+            
+            // Show container and activate plot tab first
             container.classList.add('active');
             activateTab('plot');
+            
+            // Create the plot after panel is visible
+            setTimeout(() => {
+                Plotly.newPlot('plot-container', data.data, data.layout);
+                window.dispatchEvent(new Event('resize'));
+            }, 0);
         });
 
         socket.on('error', (data) => {
@@ -589,7 +622,14 @@
             document.querySelectorAll('.visualization-panel').forEach(panel => {
                 panel.classList.remove('active');
             });
-            document.getElementById(panelName + '-panel').classList.add('active');
+            
+            const targetPanel = document.getElementById(panelName + '-panel');
+            targetPanel.classList.add('active');
+
+            // If switching to plot tab, trigger a resize to ensure proper layout
+            if (panelName === 'plot') {
+                window.dispatchEvent(new Event('resize'));
+            }
         }
 
         // Add event listeners for tab switching
@@ -608,9 +648,14 @@
         window.addEventListener('resize', () => {
             const plotPanel = document.getElementById('plot-panel');
             if (plotPanel.classList.contains('active')) {
+                const container = document.getElementById('visualization-container');
+                const width = container.clientWidth - 40;  // Account for padding
+                const height = container.clientHeight - 100;  // Account for header and padding
+                
                 Plotly.relayout('plot-container', {
-                    width: plotPanel.clientWidth,
-                    height: plotPanel.clientHeight
+                    width: width,
+                    height: height,
+                    autosize: true
                 });
             }
         });

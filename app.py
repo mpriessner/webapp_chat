@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, session
 from flask_socketio import SocketIO
 import rdkit
 from rdkit import Chem
-from rdkit.Chem import Draw
+from rdkit.Chem import Draw, Descriptors
 import random
 import base64
 import io
@@ -10,6 +10,7 @@ import anthropic
 import openai
 import numpy as np
 from config import anthropic_api_key, openai_api_key
+from io import BytesIO
 
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this to a secure secret key
@@ -174,25 +175,33 @@ def handle_disconnect():
 @socketio.on('trigger_molecule')
 def handle_molecule_request():
     try:
-        # Generate random molecule
+        # Generate a random molecule
         mol = generate_random_molecule()
-        if mol is not None:
-            # Convert molecule to image
-            img = Draw.MolToImage(mol)
-            
-            # Convert image to base64
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_str = base64.b64encode(img_buffer.getvalue()).decode()
-            
-            # Get SMILES representation
-            smiles = Chem.MolToSmiles(mol)
-            
-            # Emit the molecule data
-            socketio.emit('molecule_response', {
-                'image': img_str,
-                'smiles': smiles
-            })
+        
+        # Calculate molecular weight
+        mol_weight = Descriptors.ExactMolWt(mol)
+        
+        # Convert molecule to image
+        img = Draw.MolToImage(mol, size=(400, 400))  # Reduced size
+        
+        # Save image to bytes
+        img_bytes = BytesIO()
+        img.save(img_bytes, format='PNG')
+        img_bytes = img_bytes.getvalue()
+        
+        # Get SMILES representation
+        smiles = Chem.MolToSmiles(mol)
+        
+        # Encode image to base64
+        encoded_img = base64.b64encode(img_bytes).decode('utf-8')
+        
+        # Emit the response with molecular weight
+        socketio.emit('molecule_response', {
+            'image': encoded_img,
+            'smiles': smiles,
+            'molecular_weight': f"{mol_weight:.2f}"
+        })
+        
     except Exception as e:
         print(f"Error generating molecule: {str(e)}")
         socketio.emit('error', {'message': str(e)})
@@ -210,7 +219,9 @@ def handle_plot_request():
             'y': y,
             'mode': 'lines+markers',
             'type': 'scatter',
-            'name': 'Random Data'
+            'name': 'Random Data',
+            'line': {'color': '#007bff'},
+            'marker': {'color': '#007bff'}
         }]
         
         # Create layout
@@ -219,18 +230,20 @@ def handle_plot_request():
             'xaxis': {
                 'title': 'X-axis',
                 'showgrid': True,
-                'zeroline': True
+                'zeroline': True,
+                'gridcolor': '#e0e0e0'
             },
             'yaxis': {
                 'title': 'Y-axis',
                 'showgrid': True,
-                'zeroline': True
+                'zeroline': True,
+                'gridcolor': '#e0e0e0'
             },
             'showlegend': True,
             'hovermode': 'closest',
-            'width': 560,  # Adjusted to fit container
-            'height': 380, # Adjusted to fit container
-            'margin': {    # Added margins for better fit
+            'plot_bgcolor': 'white',
+            'paper_bgcolor': 'white',
+            'margin': {
                 'l': 50,
                 'r': 30,
                 't': 50,
