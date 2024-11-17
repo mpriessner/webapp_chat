@@ -42,6 +42,7 @@
             background: white;
             display: flex;
             flex-direction: column;
+            margin-right: calc(600px + 40px);
         }
 
         .molecule-panel {
@@ -217,6 +218,102 @@
                 transform: scale(1);
             }
         }
+
+        .visualization-container {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 600px;
+            height: 500px;
+            transition: all 0.3s ease-in-out;
+        }
+
+        .visualization-container.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .visualization-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .visualization-tabs {
+            display: flex;
+            gap: 10px;
+        }
+
+        .visualization-tab {
+            padding: 8px 16px;
+            border: none;
+            background: #f0f0f0;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .visualization-tab.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .visualization-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .visualization-panel {
+            display: none;
+            flex: 1;
+            overflow: auto;
+        }
+
+        .visualization-panel.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        #molecule-panel img {
+            max-width: 100%;
+            height: auto;
+            object-fit: contain;
+        }
+
+        #plot-panel {
+            width: 100%;
+            height: 100%;
+        }
+
+        .close-visualization {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            cursor: pointer;
+            padding: 5px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .close-visualization:hover {
+            opacity: 1;
+        }
+
+        #smiles-text {
+            margin-top: 10px;
+            word-break: break-all;
+            font-size: 0.9em;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -250,6 +347,25 @@
             </div>
             <div class="graph-container">
                 <div id="plotDiv"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="visualization-container" class="visualization-container">
+        <div class="visualization-header">
+            <div class="visualization-tabs">
+                <button class="visualization-tab active" data-panel="molecule">Molecule</button>
+                <button class="visualization-tab" data-panel="plot">Plot</button>
+            </div>
+            <button class="close-visualization">&times;</button>
+        </div>
+        <div class="visualization-content">
+            <div id="molecule-panel" class="visualization-panel active">
+                <img id="molecule-image" style="max-width: 100%; height: auto;">
+                <p id="smiles-text" style="word-break: break-all;"></p>
+            </div>
+            <div id="plot-panel" class="visualization-panel">
+                <div id="plot-container"></div>
             </div>
         </div>
     </div>
@@ -329,44 +445,26 @@
         });
 
         socket.on('molecule_response', (data) => {
-            moleculeImage.src = `data:image/png;base64,${data.image}`;
-            moleculeImage.style.display = 'block';
-            smilesText.textContent = `SMILES: ${data.smiles}`;
+            const container = document.getElementById('visualization-container');
+            const moleculeImage = document.getElementById('molecule-image');
+            const smilesText = document.getElementById('smiles-text');
+            
+            moleculeImage.src = 'data:image/png;base64,' + data.image;
+            smilesText.textContent = 'SMILES: ' + data.smiles;
+            
+            // Show container and activate molecule tab
+            container.classList.add('active');
+            activateTab('molecule');
         });
 
         socket.on('graph_response', (data) => {
-            const trace = {
-                x: data.x,
-                y: data.y,
-                mode: 'lines+markers',
-                type: 'scatter',
-                name: 'Random Data'
-            };
-
-            const layout = {
-                title: 'Interactive Random Data Plot',
-                xaxis: {
-                    title: 'X-axis',
-                    showgrid: true,
-                    zeroline: true
-                },
-                yaxis: {
-                    title: 'Y-axis',
-                    showgrid: true,
-                    zeroline: true
-                },
-                showlegend: true,
-                hovermode: 'closest'
-            };
-
-            const config = {
-                responsive: true,
-                scrollZoom: true,
-                displayModeBar: true,
-                modeBarButtonsToAdd: ['drawline', 'drawopenpath', 'eraseshape']
-            };
-
-            Plotly.newPlot('plotDiv', [trace], layout, config);
+            const container = document.getElementById('visualization-container');
+            
+            Plotly.newPlot('plot-container', data.data, data.layout);
+            
+            // Show container and activate plot tab
+            container.classList.add('active');
+            activateTab('plot');
         });
 
         socket.on('error', (data) => {
@@ -514,6 +612,43 @@
                 view.setUint8(offset + i, string.charCodeAt(i));
             }
         }
+
+        // Add tab switching functionality
+        function activateTab(panelName) {
+            // Update tabs
+            document.querySelectorAll('.visualization-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.panel === panelName);
+            });
+
+            // Update panels
+            document.querySelectorAll('.visualization-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            document.getElementById(panelName + '-panel').classList.add('active');
+        }
+
+        // Add event listeners for tab switching
+        document.querySelectorAll('.visualization-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                activateTab(tab.dataset.panel);
+            });
+        });
+
+        // Add close button functionality
+        document.querySelector('.close-visualization').addEventListener('click', () => {
+            document.getElementById('visualization-container').classList.remove('active');
+        });
+
+        // Update window resize handler for plot
+        window.addEventListener('resize', () => {
+            const plotPanel = document.getElementById('plot-panel');
+            if (plotPanel.classList.contains('active')) {
+                Plotly.relayout('plot-container', {
+                    width: plotPanel.clientWidth,
+                    height: plotPanel.clientHeight
+                });
+            }
+        });
     </script>
 </body>
 </html>

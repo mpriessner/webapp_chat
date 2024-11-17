@@ -201,14 +201,48 @@ def handle_molecule_request():
 def handle_plot_request():
     try:
         # Generate random data
-        x = list(range(100))
-        y = [random.gauss(50, 15) + 5*np.sin(i/10) for i in x]
+        x = list(range(50))
+        y = [random.randint(1, 100) for _ in range(50)]
         
-        # Emit the graph data
-        socketio.emit('graph_response', {'x': x, 'y': y})
+        # Create plot data
+        data = [{
+            'x': x,
+            'y': y,
+            'mode': 'lines+markers',
+            'type': 'scatter',
+            'name': 'Random Data'
+        }]
+        
+        # Create layout
+        layout = {
+            'title': 'Interactive Random Data Plot',
+            'xaxis': {
+                'title': 'X-axis',
+                'showgrid': True,
+                'zeroline': True
+            },
+            'yaxis': {
+                'title': 'Y-axis',
+                'showgrid': True,
+                'zeroline': True
+            },
+            'showlegend': True,
+            'hovermode': 'closest',
+            'width': 560,  # Adjusted to fit container
+            'height': 380, # Adjusted to fit container
+            'margin': {    # Added margins for better fit
+                'l': 50,
+                'r': 30,
+                't': 50,
+                'b': 50
+            }
+        }
+        
+        socketio.emit('graph_response', {'data': data, 'layout': layout})
+        
     except Exception as e:
-        print(f"Error generating graph: {str(e)}")
-        socketio.emit('error', {'message': str(e)})
+        print(f"Error generating plot: {str(e)}")
+        socketio.emit('error', {'message': 'Failed to generate plot'})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
