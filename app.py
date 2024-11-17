@@ -130,6 +130,39 @@ def clear_chat():
     session['conversation'] = []
     return jsonify({'status': 'success'})
 
+@app.route('/transcribe', methods=['POST'])
+def transcribe_audio():
+    try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file provided'}), 400
+
+        audio_file = request.files['audio']
+        
+        # Save the file temporarily
+        temp_path = 'temp_audio.wav'
+        audio_file.save(temp_path)
+        
+        try:
+            # Transcribe using OpenAI's Whisper API
+            with open(temp_path, 'rb') as audio:
+                response = openai_client.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio,
+                    response_format="text"
+                )
+                
+            return jsonify({'text': response})
+            
+        finally:
+            # Clean up the temporary file
+            import os
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            
+    except Exception as e:
+        print(f"Transcription error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')

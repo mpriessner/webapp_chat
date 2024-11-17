@@ -178,6 +178,45 @@
             height: 400px;
             margin-top: 1rem;
         }
+
+        .mic-button {
+            background-color: var(--primary-color);
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+        }
+
+        .mic-button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .mic-button i {
+            color: white;
+            font-size: 20px;
+        }
+
+        .mic-button.recording {
+            background-color: #dc3545;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
     </style>
 </head>
 <body>
@@ -194,6 +233,9 @@
                 </select>
                 <input type="text" id="message-input" class="form-control message-input" placeholder="Type your message..." required>
                 <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                <button class="mic-button" id="micButton" onclick="toggleRecording()">
+                    <i class="fas fa-microphone"></i>
+                </button>
                 <button class="btn btn-danger" onclick="clearChat()">Clear</button>
             </div>
         </div>
@@ -211,6 +253,8 @@
             </div>
         </div>
     </div>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
     <script>
         const socket = io();
@@ -332,6 +376,144 @@
 
         socket.on('connect', () => console.log('Connected to server'));
         socket.on('disconnect', () => console.log('Disconnected from server'));
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        async function toggleRecording() {
+            const micButton = document.getElementById('micButton');
+            
+            if (!isRecording) {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream, {
+                        mimeType: 'audio/webm;codecs=opus'
+                    });
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = (event) => {
+                        audioChunks.push(event.data);
+                    };
+
+                    mediaRecorder.onstop = async () => {
+                        // Convert to WAV format
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const reader = new FileReader();
+
+                        reader.onload = async function(e) {
+                            const audioBuffer = await audioContext.decodeAudioData(e.target.result);
+                            const wavBlob = await audioBufferToWav(audioBuffer);
+                            
+                            const formData = new FormData();
+                            formData.append('audio', wavBlob, 'recording.wav');
+                            formData.append('model_choice', modelSelect.value);
+
+                            try {
+                                const response = await fetch('/transcribe', {
+                                    method: 'POST',
+                                    body: formData
+                                });
+
+                                if (response.ok) {
+                                    const data = await response.json();
+                                    if (data.text) {
+                                        messageInput.value = data.text;
+                                        sendMessage();
+                                    }
+                                } else {
+                                    console.error('Transcription failed');
+                                    appendMessage('bot', 'Failed to transcribe audio. Please try again.');
+                                }
+                            } catch (error) {
+                                console.error('Error:', error);
+                                appendMessage('bot', 'An error occurred while processing your audio.');
+                            }
+                        };
+
+                        reader.readAsArrayBuffer(audioBlob);
+                        // Clean up
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    micButton.classList.add('recording');
+                    micButton.querySelector('i').classList.remove('fa-microphone');
+                    micButton.querySelector('i').classList.add('fa-stop');
+                    
+                } catch (error) {
+                    console.error('Error accessing microphone:', error);
+                    appendMessage('bot', 'Error accessing microphone. Please make sure you have granted microphone permissions.');
+                }
+            } else {
+                mediaRecorder.stop();
+                isRecording = false;
+                micButton.classList.remove('recording');
+                micButton.querySelector('i').classList.remove('fa-stop');
+                micButton.querySelector('i').classList.add('fa-microphone');
+            }
+        }
+
+        // Function to convert AudioBuffer to WAV format
+        function audioBufferToWav(buffer) {
+            const numOfChan = buffer.numberOfChannels;
+            const length = buffer.length * numOfChan * 2;
+            const result = new ArrayBuffer(44 + length);
+            const view = new DataView(result);
+
+            // RIFF identifier 'RIFF'
+            writeString(view, 0, 'RIFF');
+            // File length minus RIFF identifier length and file description length
+            view.setUint32(4, 36 + length, true);
+            // RIFF type 'WAVE'
+            writeString(view, 8, 'WAVE');
+            // Format chunk identifier 'fmt '
+            writeString(view, 12, 'fmt ');
+            // Format chunk length
+            view.setUint32(16, 16, true);
+            // Sample format (raw)
+            view.setUint16(20, 1, true);
+            // Channel count
+            view.setUint16(22, numOfChan, true);
+            // Sample rate
+            view.setUint32(24, buffer.sampleRate, true);
+            // Byte rate (sample rate * block align)
+            view.setUint32(28, buffer.sampleRate * 2 * numOfChan, true);
+            // Block align (channel count * bytes per sample)
+            view.setUint16(32, numOfChan * 2, true);
+            // Bits per sample
+            view.setUint16(34, 16, true);
+            // Data chunk identifier 'data'
+            writeString(view, 36, 'data');
+            // Data chunk length
+            view.setUint32(40, length, true);
+
+            // Write the PCM samples
+            const offset = 44;
+            const channelData = [];
+            for (let i = 0; i < buffer.numberOfChannels; i++) {
+                channelData.push(buffer.getChannelData(i));
+            }
+
+            let pos = 44;
+            for (let i = 0; i < buffer.length; i++) {
+                for (let ch = 0; ch < numOfChan; ch++) {
+                    const sample = Math.max(-1, Math.min(1, channelData[ch][i]));
+                    view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                    pos += 2;
+                }
+            }
+
+            return new Blob([result], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
     </script>
 </body>
 </html>
