@@ -8,6 +8,7 @@ import base64
 import io
 import anthropic
 import openai
+import numpy as np
 from config import anthropic_api_key, openai_api_key
 
 app = Flask(__name__)
@@ -125,6 +126,20 @@ def handle_molecule_request():
         
     except Exception as e:
         print(f"Error generating molecule: {str(e)}")
+        socketio.emit('error', {'message': str(e)})
+
+@socketio.on('get_random_graph')
+def handle_graph_request():
+    try:
+        # Generate random data
+        x = list(range(100))
+        y = [random.gauss(50, 15) + 5*np.sin(i/10) for i in x]  # Random data with sine wave pattern
+        
+        # Emit the graph data
+        socketio.emit('graph_response', {'x': x, 'y': y})
+        
+    except Exception as e:
+        print(f"Error generating graph: {str(e)}")
         socketio.emit('error', {'message': str(e)})
 
 if __name__ == '__main__':

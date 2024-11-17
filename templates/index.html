@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Chat Interface</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         :root {
             --primary-color: #0084ff;
@@ -161,6 +162,22 @@
             margin-bottom: 1.25rem;
             color: #333;
         }
+
+        .graph-container {
+            width: 90%;
+            padding: 2rem;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+            margin-top: 2rem;
+        }
+
+        #plotDiv {
+            width: 100%;
+            height: 400px;
+            margin-top: 1rem;
+        }
     </style>
 </head>
 <body>
@@ -190,6 +207,11 @@
                     <p id="smilesText"></p>
                 </div>
             </div>
+            <div class="graph-container">
+                <h1 class="page-title">Interactive Graph</h1>
+                <button id="getGraph" class="btn btn-success">Show Random Graph</button>
+                <div id="plotDiv"></div>
+            </div>
         </div>
     </div>
 
@@ -201,6 +223,7 @@
         const moleculeImage = document.getElementById('moleculeImage');
         const smilesText = document.getElementById('smilesText');
         const chatMessages = document.querySelector('.chat-messages');
+        const getGraphBtn = document.getElementById('getGraph');
 
         window.onload = function() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -264,12 +287,55 @@
             getMoleculeBtn.textContent = 'Loading...';
         });
 
+        getGraphBtn.addEventListener('click', () => {
+            socket.emit('get_random_graph');
+            getGraphBtn.disabled = true;
+            getGraphBtn.textContent = 'Loading...';
+        });
+
         socket.on('molecule_response', (data) => {
             moleculeImage.src = `data:image/png;base64,${data.image}`;
             moleculeImage.style.display = 'block';
             smilesText.textContent = `SMILES: ${data.smiles}`;
             getMoleculeBtn.disabled = false;
             getMoleculeBtn.textContent = 'Show Random Molecule';
+        });
+
+        socket.on('graph_response', (data) => {
+            const trace = {
+                x: data.x,
+                y: data.y,
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: 'Random Data'
+            };
+
+            const layout = {
+                title: 'Interactive Random Data Plot',
+                xaxis: {
+                    title: 'X-axis',
+                    showgrid: true,
+                    zeroline: true
+                },
+                yaxis: {
+                    title: 'Y-axis',
+                    showgrid: true,
+                    zeroline: true
+                },
+                showlegend: true,
+                hovermode: 'closest'
+            };
+
+            const config = {
+                responsive: true,
+                scrollZoom: true,
+                displayModeBar: true,
+                modeBarButtonsToAdd: ['drawline', 'drawopenpath', 'eraseshape']
+            };
+
+            Plotly.newPlot('plotDiv', [trace], layout, config);
+            getGraphBtn.disabled = false;
+            getGraphBtn.textContent = 'Show Random Graph';
         });
 
         socket.on('connect', () => console.log('Connected to server'));
