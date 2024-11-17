@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Interface</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --primary-color: #0084ff;
+            --primary-hover: #0073e6;
+            --danger-color: #dc3545;
+            --danger-hover: #c82333;
+            --success-color: #4CAF50;
+            --success-hover: #45a049;
+            --border-color: #e4e4e4;
+            --bg-color: #f0f2f5;
+            --shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: var(--bg-color);
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .chat-panel {
+            width: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .molecule-panel {
+            width: 50%;
+            background: white;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .molecule-container {
+            width: 90%;
+            padding: 2rem;
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .message {
+            margin-bottom: 1rem;
+            max-width: 90%;
+            padding: 0.75rem 1rem;
+            border-radius: 1rem;
+            word-wrap: break-word;
+        }
+
+        .user-message {
+            background: var(--primary-color);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.25rem;
+        }
+
+        .bot-message {
+            background: #f0f0f0;
+            color: black;
+            margin-right: auto;
+            border-bottom-left-radius: 0.25rem;
+            white-space: pre-wrap;
+        }
+
+        .input-form {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .form-control {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            font-size: 1rem;
+        }
+
+        .message-input {
+            flex: 1;
+        }
+
+        .model-select {
+            min-width: 180px;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background: var(--danger-color);
+        }
+
+        .btn-danger:hover {
+            background: var(--danger-hover);
+        }
+
+        .btn-success {
+            background: var(--success-color);
+        }
+
+        .btn-success:hover {
+            background: var(--success-hover);
+        }
+
+        #moleculeImage {
+            max-width: 100%;
+            margin: 1.25rem 0;
+        }
+
+        #smilesText {
+            font-family: monospace;
+            margin: 0.625rem 0;
+            word-break: break-all;
+        }
+
+        .page-title {
+            margin-bottom: 1.25rem;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="chat-panel">
+            <div class="chat-messages">
+                {% for role, message in conversation %}
+                <div class="message {% if role == 'user' %}user-message{% else %}bot-message{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            <div class="input-form">
+                <select name="model_choice" class="form-control model-select" id="model-select">
+                    <option value="claude_haiku_prompt" {% if current_model == 'claude_haiku_prompt' %}selected{% endif %}>Claude 3.5 Haiku</option>
+                    <option value="claude_prompt" {% if current_model == 'claude_prompt' %}selected{% endif %}>Claude 3.5 Sonnet</option>
+                    <option value="GPT4o" {% if current_model == 'GPT4o' %}selected{% endif %}>GPT-4</option>
+                    <option value="openai" {% if current_model == 'openai' %}selected{% endif %}>O1-Mini</option>
+                </select>
+                <input type="text" id="message-input" class="form-control message-input" placeholder="Type your message..." required>
+                <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+                <button class="btn btn-danger" onclick="clearChat()">Clear</button>
+            </div>
+        </div>
+
+        <div class="molecule-panel">
+            <div class="molecule-container">
+                <h1 class="page-title">Random Molecule Viewer</h1>
+                <button id="getMolecule" class="btn btn-success">Show Random Molecule</button>
+                <div id="moleculeDisplay">
+                    <img id="moleculeImage" style="display: none;">
+                    <p id="smilesText"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const messageInput = document.getElementById('message-input');
+        const modelSelect = document.getElementById('model-select');
+        const getMoleculeBtn = document.getElementById('getMolecule');
+        const moleculeImage = document.getElementById('moleculeImage');
+        const smilesText = document.getElementById('smilesText');
+
+        window.onload = function() {
+            const messages = document.querySelector('.chat-messages');
+            messages.scrollTop = messages.scrollHeight;
+        };
+
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            const model = modelSelect.value;
+            
+            if (!message) return;
+
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `user_input=${encodeURIComponent(message)}&model_choice=${encodeURIComponent(model)}`
+                });
+
+                if (response.ok) {
+                    messageInput.value = '';
+                    location.reload();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function clearChat() {
+            fetch('/clear_chat')
+                .then(() => location.reload())
+                .catch(error => console.error('Error:', error));
+        }
+
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        getMoleculeBtn.addEventListener('click', () => {
+            socket.emit('get_random_molecule');
+            getMoleculeBtn.disabled = true;
+            getMoleculeBtn.textContent = 'Loading...';
+        });
+
+        socket.on('molecule_response', (data) => {
+            moleculeImage.src = `data:image/png;base64,${data.image}`;
+            moleculeImage.style.display = 'block';
+            smilesText.textContent = `SMILES: ${data.smiles}`;
+            getMoleculeBtn.disabled = false;
+            getMoleculeBtn.textContent = 'Show Random Molecule';
+        });
+
+        socket.on('connect', () => console.log('Connected to server'));
+        socket.on('disconnect', () => console.log('Disconnected from server'));
+    </script>
+</body>
+</html>
