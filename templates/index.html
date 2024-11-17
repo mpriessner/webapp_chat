@@ -200,16 +200,13 @@
 
         <div class="molecule-panel">
             <div class="molecule-container">
-                <h1 class="page-title">Random Molecule Viewer</h1>
-                <button id="getMolecule" class="btn btn-success">Show Random Molecule</button>
+                <h1 class="page-title">Molecule and Graph Viewer</h1>
                 <div id="moleculeDisplay">
                     <img id="moleculeImage" style="display: none;">
                     <p id="smilesText"></p>
                 </div>
             </div>
             <div class="graph-container">
-                <h1 class="page-title">Interactive Graph</h1>
-                <button id="getGraph" class="btn btn-success">Show Random Graph</button>
                 <div id="plotDiv"></div>
             </div>
         </div>
@@ -219,57 +216,55 @@
         const socket = io();
         const messageInput = document.getElementById('message-input');
         const modelSelect = document.getElementById('model-select');
-        const getMoleculeBtn = document.getElementById('getMolecule');
+        const chatMessages = document.querySelector('.chat-messages');
         const moleculeImage = document.getElementById('moleculeImage');
         const smilesText = document.getElementById('smilesText');
-        const chatMessages = document.querySelector('.chat-messages');
-        const getGraphBtn = document.getElementById('getGraph');
 
         window.onload = function() {
             chatMessages.scrollTop = chatMessages.scrollHeight;
         };
 
-        function appendMessage(content, isUser) {
+        function appendMessage(role, content) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.className = `message ${role === 'user' ? 'user-message' : 'bot-message'}`;
             messageDiv.textContent = content;
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
 
-        async function sendMessage() {
+        function sendMessage() {
             const message = messageInput.value.trim();
             const model = modelSelect.value;
             
-            if (!message) return;
-
-            // Add user message immediately
-            appendMessage(message, true);
-            messageInput.value = '';
-
-            try {
-                const response = await fetch('/', {
+            if (message) {
+                appendMessage('user', message);
+                messageInput.value = '';
+                
+                fetch('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
                     body: `user_input=${encodeURIComponent(message)}&model_choice=${encodeURIComponent(model)}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    appendMessage('bot', data.response);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    appendMessage('bot', 'An error occurred while processing your message.');
                 });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    appendMessage(data.response, false);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                appendMessage('An error occurred while sending the message.', false);
             }
         }
 
         function clearChat() {
-            fetch('/clear_chat')
+            fetch('/clear_chat', { method: 'POST' })
                 .then(() => {
                     chatMessages.innerHTML = '';
+                    moleculeImage.style.display = 'none';
+                    smilesText.textContent = '';
+                    document.getElementById('plotDiv').innerHTML = '';
                 })
                 .catch(error => console.error('Error:', error));
         }
@@ -281,24 +276,18 @@
             }
         });
 
-        getMoleculeBtn.addEventListener('click', () => {
-            socket.emit('get_random_molecule');
-            getMoleculeBtn.disabled = true;
-            getMoleculeBtn.textContent = 'Loading...';
+        socket.on('trigger_molecule', () => {
+            socket.emit('trigger_molecule');
         });
 
-        getGraphBtn.addEventListener('click', () => {
-            socket.emit('get_random_graph');
-            getGraphBtn.disabled = true;
-            getGraphBtn.textContent = 'Loading...';
+        socket.on('trigger_plot', () => {
+            socket.emit('trigger_plot');
         });
 
         socket.on('molecule_response', (data) => {
             moleculeImage.src = `data:image/png;base64,${data.image}`;
             moleculeImage.style.display = 'block';
             smilesText.textContent = `SMILES: ${data.smiles}`;
-            getMoleculeBtn.disabled = false;
-            getMoleculeBtn.textContent = 'Show Random Molecule';
         });
 
         socket.on('graph_response', (data) => {
@@ -334,8 +323,11 @@
             };
 
             Plotly.newPlot('plotDiv', [trace], layout, config);
-            getGraphBtn.disabled = false;
-            getGraphBtn.textContent = 'Show Random Graph';
+        });
+
+        socket.on('error', (data) => {
+            console.error('Error:', data.message);
+            appendMessage('bot', `Error: ${data.message}`);
         });
 
         socket.on('connect', () => console.log('Connected to server'));
