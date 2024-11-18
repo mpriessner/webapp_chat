@@ -1,0 +1,6 @@
+Flask==2.3.3
+flask-socketio==5.3.6
+rdkit==2024.3.6
+anthropic==0.18.1
+openai==1.14.0
+requests==2.31.0

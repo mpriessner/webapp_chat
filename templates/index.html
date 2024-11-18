@@ -314,6 +314,26 @@
         .close-visualization:hover {
             opacity: 1;
         }
+
+        .message-controls {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 5px;
+        }
+
+        .speak-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #007bff;
+            padding: 2px 5px;
+            font-size: 0.9em;
+        }
+
+        .speak-button:hover {
+            color: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -382,9 +402,56 @@
         function appendMessage(role, content) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${role === 'user' ? 'user-message' : 'bot-message'}`;
-            messageDiv.textContent = content;
+            
+            // Create message content
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.textContent = content;
+            messageDiv.appendChild(contentDiv);
+            
+            // Add speak button for bot messages
+            if (role === 'bot') {
+                const controlsDiv = document.createElement('div');
+                controlsDiv.className = 'message-controls';
+                
+                const speakButton = document.createElement('button');
+                speakButton.className = 'speak-button';
+                speakButton.innerHTML = '<i class="fas fa-volume-up"></i>';
+                speakButton.onclick = () => speakText(content);
+                controlsDiv.appendChild(speakButton);
+                messageDiv.appendChild(controlsDiv);
+            }
+            
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        async function speakText(text) {
+            try {
+                const response = await fetch('/text-to-speech', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    console.error('Text-to-speech error:', data.error);
+                    return;
+                }
+
+                // Create and play audio
+                const audio = new Audio('data:audio/mpeg;base64,' + data.audio);
+                await audio.play();
+            } catch (error) {
+                console.error('Error playing audio:', error);
+            }
         }
 
         sendButton.addEventListener('click', function() {

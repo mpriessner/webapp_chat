@@ -9,7 +9,8 @@ import io
 import anthropic
 import openai
 import numpy as np
-from config import anthropic_api_key, openai_api_key
+import requests
+from config import anthropic_api_key, openai_api_key, elevenlabs_key
 from io import BytesIO
 
 app = Flask(__name__)
@@ -164,6 +165,44 @@ def transcribe_audio():
         print(f"Transcription error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/text-to-speech', methods=['POST'])
+def text_to_speech():
+    try:
+        text = request.json.get('text', '')
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+
+        # ElevenLabs API endpoint
+        url = "https://api.elevenlabs.io/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM"  # Default voice ID
+        
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": elevenlabs_key
+        }
+        
+        data = {
+            "text": text,
+            "model_id": "eleven_monolingual_v1",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.5
+            }
+        }
+
+        response = requests.post(url, json=data, headers=headers)
+        
+        if response.status_code == 200:
+            # Convert audio data to base64
+            audio_base64 = base64.b64encode(response.content).decode('utf-8')
+            return jsonify({'audio': audio_base64})
+        else:
+            return jsonify({'error': f'ElevenLabs API error: {response.text}'}), response.status_code
+
+    except Exception as e:
+        print(f"Error in text-to-speech: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @socketio.on('connect')
 def handle_connect():
     print('Client connected')
@@ -259,4 +298,3 @@ def handle_plot_request():
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
-    
