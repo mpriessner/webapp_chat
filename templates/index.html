@@ -195,25 +195,49 @@
             }
         }
 
-        .visualization-container {
-            display: none;
+        .visualization-grid {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 33.333vw;  /* One third of viewport width */
-            height: 50vh;    /* Half of viewport height */
+            top: 0;
+            right: 0;
+            width: 66.666vw;  /* Two thirds of viewport width */
+            height: 100vh;
+            pointer-events: none;  /* Allow clicking through when boxes are hidden */
+        }
+
+        .visualization-container {
+            position: absolute;  /* Changed from fixed to absolute */
+            width: 33.333vw;
+            height: 50vh;
             background: white;
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             overflow: hidden;
             z-index: 1000;
             border: 1px solid var(--border-color);
+            pointer-events: auto;
             display: flex;
             flex-direction: column;
         }
 
-        .visualization-container.active {
-            display: flex;
+        /* Position each container */
+        #vis-container-1 {
+            top: 0;
+            left: 0;
+        }
+
+        #vis-container-2 {
+            top: 0;
+            right: 20px;
+        }
+
+        #vis-container-3 {
+            bottom: 20px;
+            left: 0;
+        }
+
+        #vis-container-4 {
+            bottom: 20px;
+            right: 20px;
         }
 
         .visualization-header {
@@ -226,12 +250,14 @@
         }
 
         .visualization-content {
-            flex: 1;
+            flex-grow: 1;
             overflow: auto;
-            padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: #fafafa;
         }
 
         .visualization-panel {
@@ -324,6 +350,75 @@
         .speak-button:hover {
             color: #0056b3;
         }
+
+        .content-placeholder {
+            color: #666;
+            text-align: center;
+            font-style: italic;
+        }
+
+        .file-input-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .file-input-box {
+            width: 100%;
+            height: 150px;
+            border: 2px dashed var(--border-color);
+            border-radius: var(--radius);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .file-input-box i {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .file-input-box p {
+            font-size: 1.2em;
+            color: #666;
+        }
+
+        .file-list {
+            margin-top: 20px;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-item span {
+            font-size: 1.1em;
+        }
+
+        .file-item button {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 5px;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .file-item button:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
@@ -347,32 +442,72 @@
                 <button id="send-button">Send</button>
             </div>
         </div>
-        <div class="empty-space">
-            Visualizations will appear here when requested
-        </div>
-    </div>
-
-    <div id="visualization-container" class="visualization-container">
-        <div class="visualization-header">
-            <div class="visualization-tabs">
-                <button class="visualization-tab active" data-panel="molecule">Molecule</button>
-                <button class="visualization-tab" data-panel="plot">Plot</button>
-            </div>
-            <button class="close-visualization">&times;</button>
-        </div>
-        <div class="visualization-content">
-            <div id="molecule-panel" class="visualization-panel active">
-                <img id="molecule-image">
-                <div class="molecule-info">
-                    <p><span class="label">SMILES:</span><span id="smiles-text"></span></p>
-                    <p><span class="label">Molecular Weight:</span><span id="molecular-weight"></span> g/mol</p>
+        <div class="visualization-grid">
+            <!-- Top Left Box - File Input 1 -->
+            <div class="visualization-container" id="vis-container-1">
+                <div class="visualization-header">
+                    <div class="tab-container">
+                        <button class="visualization-tab active">Input File 1</button>
+                    </div>
+                    <button class="close-visualization" data-container="1">&times;</button>
+                </div>
+                <div class="visualization-content" id="vis-content-1">
+                    <div class="content-placeholder">
+                        <i class="fas fa-file-upload fa-2x mb-2"></i>
+                        <p>Ready for file input</p>
+                    </div>
                 </div>
             </div>
-            <div id="plot-panel" class="visualization-panel">
-                <div id="plot-container"></div>
+
+            <!-- Top Right Box - File Input 2 -->
+            <div class="visualization-container" id="vis-container-2">
+                <div class="visualization-header">
+                    <div class="tab-container">
+                        <button class="visualization-tab active">Input File 2</button>
+                    </div>
+                    <button class="close-visualization" data-container="2">&times;</button>
+                </div>
+                <div class="visualization-content" id="vis-content-2">
+                    <div class="content-placeholder">
+                        <i class="fas fa-file-upload fa-2x mb-2"></i>
+                        <p>Ready for file input</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Left Box - Reserved -->
+            <div class="visualization-container" id="vis-container-3">
+                <div class="visualization-header">
+                    <div class="tab-container">
+                        <button class="visualization-tab active">Reserved</button>
+                    </div>
+                    <button class="close-visualization" data-container="3">&times;</button>
+                </div>
+                <div class="visualization-content" id="vis-content-3">
+                    <div class="content-placeholder">
+                        <i class="fas fa-cog fa-2x mb-2"></i>
+                        <p>Reserved for future use</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Right Box - Molecule/Plot -->
+            <div class="visualization-container" id="vis-container-4">
+                <div class="visualization-header">
+                    <div class="tab-container">
+                        <button class="visualization-tab active" data-panel="molecule">Molecule</button>
+                        <button class="visualization-tab" data-panel="plot">Plot</button>
+                    </div>
+                    <button class="close-visualization" data-container="4">&times;</button>
+                </div>
+                <div class="visualization-content" id="vis-content-4">
+                    <div class="content-placeholder">
+                        <i class="fas fa-atom fa-2x mb-2"></i>
+                        <p>Ready for molecule or plot visualization</p>
+                    </div>
+                </div>
             </div>
         </div>
-    </div>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
@@ -493,42 +628,227 @@
             socket.emit('trigger_plot');
         });
 
+        function showFileInput(containerId) {
+            const content = document.getElementById(`vis-content-${containerId}`);
+            content.innerHTML = `
+                <div class="file-input-container">
+                    <div class="file-input-box" id="file-drop-${containerId}">
+                        <i class="fas fa-file-upload"></i>
+                        <p>Drag & drop files here or click to select</p>
+                        <input type="file" id="file-input-${containerId}" multiple style="display: none;">
+                    </div>
+                    <div class="file-list" id="file-list-${containerId}"></div>
+                </div>
+            `;
+
+            // Setup file input handlers
+            const dropZone = document.getElementById(`file-drop-${containerId}`);
+            const fileInput = document.getElementById(`file-input-${containerId}`);
+            
+            dropZone.onclick = () => fileInput.click();
+            
+            fileInput.onchange = (e) => {
+                handleFiles(e.target.files, containerId);
+            };
+            
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--primary-color)';
+            };
+            
+            dropZone.ondragleave = () => {
+                dropZone.style.borderColor = 'var(--border-color)';
+            };
+            
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--border-color)';
+                handleFiles(e.dataTransfer.files, containerId);
+            };
+        }
+
         socket.on('molecule_response', (data) => {
-            const container = document.getElementById('visualization-container');
-            const moleculeImage = document.getElementById('molecule-image');
-            const smilesText = document.getElementById('smiles-text');
-            const molecularWeight = document.getElementById('molecular-weight');
-
-            moleculeImage.src = 'data:image/png;base64,' + data.image;
-            smilesText.textContent = data.smiles;
-            molecularWeight.textContent = data.molecular_weight;
-
-            // Show container and activate molecule tab
-            container.classList.add('active');
-            activateTab('molecule');
+            const content = document.getElementById('vis-content-4');
+            
+            // Clear previous content
+            content.innerHTML = '';
+            
+            // Create molecule panel
+            const moleculePanel = document.createElement('div');
+            moleculePanel.className = 'visualization-panel active';
+            moleculePanel.id = 'molecule-panel-4';
+            
+            // Create and add image
+            const img = document.createElement('img');
+            img.id = 'molecule-image-4';
+            img.src = 'data:image/png;base64,' + data.image;
+            moleculePanel.appendChild(img);
+            
+            // Create info div
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'molecule-info';
+            
+            // Add SMILES
+            const smilesP = document.createElement('p');
+            smilesP.innerHTML = `<span class="label">SMILES:</span> ${data.smiles}`;
+            infoDiv.appendChild(smilesP);
+            
+            // Add Molecular Weight
+            const weightP = document.createElement('p');
+            weightP.innerHTML = `<span class="label">Molecular Weight:</span> ${data.molecular_weight} g/mol`;
+            infoDiv.appendChild(weightP);
+            
+            moleculePanel.appendChild(infoDiv);
+            content.appendChild(moleculePanel);
         });
 
         socket.on('graph_response', (data) => {
-            const container = document.getElementById('visualization-container');
+            const content = document.getElementById('vis-content-4');
             
-            // Show container and activate plot tab first
-            container.classList.add('active');
-            activateTab('plot');
+            // Clear previous content
+            content.innerHTML = '';
             
-            // Create the plot after panel is visible
+            // Create plot panel
+            const plotPanel = document.createElement('div');
+            plotPanel.className = 'visualization-panel active';
+            plotPanel.id = 'plot-panel-4';
+            
+            const plotContainer = document.createElement('div');
+            plotContainer.id = 'plot-container-4';
+            plotPanel.appendChild(plotContainer);
+            content.appendChild(plotPanel);
+            
+            // Create plot
             setTimeout(() => {
-                Plotly.newPlot('plot-container', data.data, data.layout);
+                Plotly.newPlot('plot-container-4', data.data, data.layout);
                 window.dispatchEvent(new Event('resize'));
             }, 0);
         });
 
-        socket.on('error', (data) => {
-            console.error('Error:', data.message);
-            appendMessage('bot', `Error: ${data.message}`);
+        // Close button handler - now minimizes instead of hiding
+        document.querySelectorAll('.close-visualization').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const containerId = e.target.dataset.container;
+                const container = document.getElementById(`vis-container-${containerId}`);
+                const content = document.getElementById(`vis-content-${containerId}`);
+                
+                // Reset to placeholder content
+                if (containerId === '1' || containerId === '2') {
+                    content.innerHTML = `
+                        <div class="content-placeholder">
+                            <i class="fas fa-file-upload fa-2x mb-2"></i>
+                            <p>Ready for file input</p>
+                        </div>
+                    `;
+                } else if (containerId === '3') {
+                    content.innerHTML = `
+                        <div class="content-placeholder">
+                            <i class="fas fa-cog fa-2x mb-2"></i>
+                            <p>Reserved for future use</p>
+                        </div>
+                    `;
+                } else {
+                    content.innerHTML = `
+                        <div class="content-placeholder">
+                            <i class="fas fa-atom fa-2x mb-2"></i>
+                            <p>Ready for molecule or plot visualization</p>
+                        </div>
+                    `;
+                }
+            });
         });
 
-        socket.on('connect', () => console.log('Connected to server'));
-        socket.on('disconnect', () => console.log('Disconnected from server'));
+        // Add tab switching functionality
+        function activateTab(panelName) {
+            // Update tabs
+            document.querySelectorAll('.visualization-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.panel === panelName);
+            });
+
+            // Update panels
+            document.querySelectorAll('.visualization-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            
+            const targetPanel = document.getElementById(panelName + '-panel');
+            targetPanel.classList.add('active');
+
+            // If switching to plot tab, trigger a resize to ensure proper layout
+            if (panelName === 'plot') {
+                window.dispatchEvent(new Event('resize'));
+            }
+        }
+
+        // Add event listeners for tab switching
+        document.querySelectorAll('.visualization-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                activateTab(tab.dataset.panel);
+            });
+        });
+
+        // Update window resize handler for plot
+        window.addEventListener('resize', () => {
+            const plotPanel = document.getElementById('plot-panel');
+            if (plotPanel.classList.contains('active')) {
+                const container = document.getElementById('visualization-container');
+                const width = container.clientWidth - 40;  /* Account for padding */
+                const height = container.clientHeight - 100;  /* Account for header and padding */
+                
+                Plotly.relayout('plot-container', {
+                    width: width,
+                    height: height,
+                    autosize: true
+                });
+            }
+        });
+
+        // File handling
+        function handleFiles(files, containerId) {
+            const fileList = document.getElementById(`file-list-${containerId}`);
+            
+            Array.from(files).forEach(file => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                
+                const fileName = document.createElement('span');
+                fileName.textContent = file.name;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.innerHTML = '&times;';
+                removeBtn.onclick = () => fileItem.remove();
+                
+                fileItem.appendChild(fileName);
+                fileItem.appendChild(removeBtn);
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        // Setup file input handlers
+        [1, 2].forEach(id => {
+            const dropZone = document.getElementById(`file-drop-${id}`);
+            const fileInput = document.getElementById(`file-input-${id}`);
+            
+            dropZone.onclick = () => fileInput.click();
+            
+            fileInput.onchange = (e) => {
+                handleFiles(e.target.files, id);
+            };
+            
+            dropZone.ondragover = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--primary-color)';
+            };
+            
+            dropZone.ondragleave = () => {
+                dropZone.style.borderColor = 'var(--border-color)';
+            };
+            
+            dropZone.ondrop = (e) => {
+                e.preventDefault();
+                dropZone.style.borderColor = 'var(--border-color)';
+                handleFiles(e.dataTransfer.files, id);
+            };
+        });
 
         let mediaRecorder;
         let audioChunks = [];
@@ -668,54 +988,33 @@
             }
         }
 
-        // Add tab switching functionality
-        function activateTab(panelName) {
-            // Update tabs
-            document.querySelectorAll('.visualization-tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.panel === panelName);
-            });
-
-            // Update panels
-            document.querySelectorAll('.visualization-panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
-            
-            const targetPanel = document.getElementById(panelName + '-panel');
-            targetPanel.classList.add('active');
-
-            // If switching to plot tab, trigger a resize to ensure proper layout
-            if (panelName === 'plot') {
-                window.dispatchEvent(new Event('resize'));
-            }
-        }
-
-        // Add event listeners for tab switching
+        // Tab switching handler
         document.querySelectorAll('.visualization-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                activateTab(tab.dataset.panel);
+            tab.addEventListener('click', (e) => {
+                const containerNum = e.target.closest('.visualization-container').id.split('-')[2];
+                const panelType = e.target.dataset.panel;
+                
+                // Update tabs
+                const tabContainer = e.target.closest('.tab-container');
+                tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
+                    t.classList.toggle('active', t.dataset.panel === panelType);
+                });
+                
+                // Update panels
+                const content = document.getElementById(`vis-content-${containerNum}`);
+                content.querySelectorAll('.visualization-panel').forEach(panel => {
+                    panel.classList.toggle('active', panel.id.includes(panelType));
+                });
+                
+                // Trigger resize for plots
+                if (panelType.includes('plot')) {
+                    window.dispatchEvent(new Event('resize'));
+                }
             });
         });
 
-        // Add close button functionality
-        document.querySelector('.close-visualization').addEventListener('click', () => {
-            document.getElementById('visualization-container').classList.remove('active');
-        });
-
-        // Update window resize handler for plot
-        window.addEventListener('resize', () => {
-            const plotPanel = document.getElementById('plot-panel');
-            if (plotPanel.classList.contains('active')) {
-                const container = document.getElementById('visualization-container');
-                const width = container.clientWidth - 40;  // Account for padding
-                const height = container.clientHeight - 100;  // Account for header and padding
-                
-                Plotly.relayout('plot-container', {
-                    width: width,
-                    height: height,
-                    autosize: true
-                });
-            }
-        });
+        showFileInput(1);
+        showFileInput(2);
     </script>
 </body>
 </html>
