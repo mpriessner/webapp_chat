@@ -1066,32 +1066,12 @@
         micButton.addEventListener('click', toggleRecording);
 
         function showFileInput(containerId) {
-            const content = document.getElementById(`vis-content-${containerId}`);
-            
-            // Only set up the file input for container 1, leave container 2 as is
-            if (containerId === 1) {
-                content.innerHTML = `
-                    <div class="file-input-box">
-                        <i class="fas fa-file-upload fa-2x"></i>
-                        <p>Select CSV file with SMILES column</p>
-                        <div class="button-group">
-                            <input type="file" id="file-input-1" accept=".csv" style="display: none;" onchange="handleFileSelect(event, 1)">
-                            <button class="file-input-button" onclick="document.getElementById('file-input-1').click()">
-                                Choose File
-                            </button>
-                            <button id="upload-button-1" class="file-input-button" disabled onclick="uploadSelectedFile(1)">
-                                Upload File
-                            </button>
-                        </div>
-                        <div id="upload-status-1" class="upload-status"></div>
-                        <div id="file-list-1" class="file-list"></div>
-                    </div>
-                `;
-            }
+            return;  // Disable this function as we're using static file input now
         }
 
-        showFileInput(1);
-        showFileInput(2);
+        // Remove these calls as we don't need dynamic file input anymore
+        // showFileInput(1);
+        // showFileInput(2);
     </script>
 </body>
 </html>
