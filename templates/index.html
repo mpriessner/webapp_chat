@@ -264,12 +264,34 @@
             display: none;
             width: 100%;
             height: 100%;
+            overflow: auto;
+            padding: 10px;
         }
 
         .visualization-panel.active {
             display: flex;
             flex-direction: column;
             align-items: center;
+        }
+
+        .visualization-panel img {
+            max-width: 100%;
+            max-height: calc(100% - 80px); /* Account for info div */
+            object-fit: contain;
+            margin-bottom: 10px;
+        }
+
+        .molecule-info {
+            width: 100%;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: var(--radius);
+            margin-top: auto;
+        }
+
+        #plot-container-4 {
+            width: 100% !important;
+            height: 100% !important;
         }
 
         .visualization-tabs {
@@ -688,11 +710,19 @@
             // Update molecule content
             moleculePanel.innerHTML = '';
             
+            // Create wrapper for image and info
+            const wrapper = document.createElement('div');
+            wrapper.style.width = '100%';
+            wrapper.style.height = '100%';
+            wrapper.style.display = 'flex';
+            wrapper.style.flexDirection = 'column';
+            wrapper.style.alignItems = 'center';
+            
             // Create and add image
             const img = document.createElement('img');
             img.id = 'molecule-image-4';
             img.src = 'data:image/png;base64,' + data.image;
-            moleculePanel.appendChild(img);
+            wrapper.appendChild(img);
             
             // Create info div
             const infoDiv = document.createElement('div');
@@ -708,7 +738,8 @@
             weightP.innerHTML = `<span class="label">Molecular Weight:</span> ${data.molecular_weight} g/mol`;
             infoDiv.appendChild(weightP);
             
-            moleculePanel.appendChild(infoDiv);
+            wrapper.appendChild(infoDiv);
+            moleculePanel.appendChild(wrapper);
             
             // Show molecule panel and update tabs
             document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
@@ -725,6 +756,21 @@
 
         socket.on('graph_response', (data) => {
             const content = document.getElementById('vis-content-4');
+            const containerRect = content.getBoundingClientRect();
+            
+            // Calculate available space with more padding and smaller proportions
+            const availableWidth = Math.min(containerRect.width * 0.85, containerRect.width - 80); // 20% smaller width
+            const availableHeight = Math.min(containerRect.height * 0.8, containerRect.height - 100); // 20% smaller height
+            
+            // Update layout with calculated dimensions and larger margins
+            const layout = {
+                ...data.layout,
+                width: availableWidth,
+                height: availableHeight,
+                margin: { t: 30, r: 30, b: 50, l: 60 }, // Increased margins
+                autosize: true,
+                font: { size: 10 } // Smaller font size
+            };
             
             // Remove placeholder if it exists
             const placeholder = content.querySelector('.content-placeholder');
@@ -738,6 +784,8 @@
                 plotPanel = document.createElement('div');
                 plotPanel.className = 'visualization-panel';
                 plotPanel.id = 'plot-panel-4';
+                plotPanel.style.width = '100%';
+                plotPanel.style.height = '100%';
                 content.appendChild(plotPanel);
             }
             
@@ -746,6 +794,8 @@
             
             const plotContainer = document.createElement('div');
             plotContainer.id = 'plot-container-4';
+            plotContainer.style.width = '100%';
+            plotContainer.style.height = '100%';
             plotPanel.appendChild(plotContainer);
             
             // Show plot panel and update tabs
@@ -760,16 +810,36 @@
                 tab.classList.toggle('active', tab.dataset.panel === 'plot');
             });
             
-            // Create plot
+            // Create plot with responsive layout
             setTimeout(() => {
-                Plotly.newPlot('plot-container-4', data.data, data.layout);
-                window.dispatchEvent(new Event('resize'));
+                Plotly.newPlot('plot-container-4', data.data, layout, {
+                    responsive: true,
+                    useResizeHandler: true
+                });
             }, 0);
         });
 
+        // Update window resize handler with new calculations
+        window.addEventListener('resize', () => {
+            const plotContainer = document.getElementById('plot-container-4');
+            if (plotContainer) {
+                const content = document.getElementById('vis-content-4');
+                const containerRect = content.getBoundingClientRect();
+                
+                const availableWidth = Math.min(containerRect.width * 0.85, containerRect.width - 80);
+                const availableHeight = Math.min(containerRect.height * 0.8, containerRect.height - 100);
+                
+                Plotly.relayout('plot-container-4', {
+                    width: availableWidth,
+                    height: availableHeight
+                });
+            }
+        });
+
         // Tab switching handler
-        document.querySelectorAll('#vis-container-4 .visualization-tab').forEach(tab => {
+        document.querySelectorAll('.visualization-tab').forEach(tab => {
             tab.addEventListener('click', (e) => {
+                const containerNum = e.target.closest('.visualization-container').id.split('-')[2];
                 const panelType = e.target.dataset.panel;
                 
                 // Update tabs
@@ -779,47 +849,14 @@
                 });
                 
                 // Update panels
-                const content = document.getElementById('vis-content-4');
+                const content = document.getElementById(`vis-content-${containerNum}`);
                 content.querySelectorAll('.visualization-panel').forEach(panel => {
-                    panel.classList.toggle('active', panel.id === `${panelType}-panel-4`);
+                    panel.classList.toggle('active', panel.id.includes(panelType));
                 });
                 
                 // Trigger resize for plots
-                if (panelType === 'plot') {
+                if (panelType.includes('plot')) {
                     window.dispatchEvent(new Event('resize'));
-                }
-            });
-        });
-
-        // Close button handler - now minimizes instead of hiding
-        document.querySelectorAll('.close-visualization').forEach(button => {
-            button.addEventListener('click', (e) => {
-                const containerId = e.target.dataset.container;
-                const container = document.getElementById(`vis-container-${containerId}`);
-                const content = document.getElementById(`vis-content-${containerId}`);
-                
-                // Reset to placeholder content
-                if (containerId === '1' || containerId === '2') {
-                    content.innerHTML = `
-                        <div class="content-placeholder">
-                            <i class="fas fa-file-upload fa-2x mb-2"></i>
-                            <p>Ready for file input</p>
-                        </div>
-                    `;
-                } else if (containerId === '3') {
-                    content.innerHTML = `
-                        <div class="content-placeholder">
-                            <i class="fas fa-cog fa-2x mb-2"></i>
-                            <p>Reserved for future use</p>
-                        </div>
-                    `;
-                } else {
-                    content.innerHTML = `
-                        <div class="content-placeholder">
-                            <i class="fas fa-atom fa-2x mb-2"></i>
-                            <p>Ready for molecule or plot visualization</p>
-                        </div>
-                    `;
                 }
             });
         });
@@ -1009,31 +1046,6 @@
                 view.setUint8(offset + i, string.charCodeAt(i));
             }
         }
-
-        // Tab switching handler
-        document.querySelectorAll('.visualization-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const containerNum = e.target.closest('.visualization-container').id.split('-')[2];
-                const panelType = e.target.dataset.panel;
-                
-                // Update tabs
-                const tabContainer = e.target.closest('.tab-container');
-                tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
-                    t.classList.toggle('active', t.dataset.panel === panelType);
-                });
-                
-                // Update panels
-                const content = document.getElementById(`vis-content-${containerNum}`);
-                content.querySelectorAll('.visualization-panel').forEach(panel => {
-                    panel.classList.toggle('active', panel.id.includes(panelType));
-                });
-                
-                // Trigger resize for plots
-                if (panelType.includes('plot')) {
-                    window.dispatchEvent(new Event('resize'));
-                }
-            });
-        });
 
         showFileInput(1);
         showFileInput(2);
