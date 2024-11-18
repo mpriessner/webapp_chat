@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify, session
 from flask_socketio import SocketIO
 import rdkit
 from rdkit import Chem
-from rdkit.Chem import Draw, Descriptors
+from rdkit.Chem import Draw, Descriptors, AllChem
 import random
 import base64
 import io
@@ -10,6 +10,9 @@ import anthropic
 import openai
 import numpy as np
 import requests
+import pandas as pd
+import os
+from datetime import datetime
 from config import anthropic_api_key, openai_api_key, elevenlabs_key
 from io import BytesIO
 
@@ -21,6 +24,10 @@ socketio = SocketIO(app)
 anthropic_client = anthropic.Anthropic(api_key=anthropic_api_key)
 openai_client = openai.OpenAI(api_key=openai_api_key)
 
+# Create uploads directory if it doesn't exist
+UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 # Sample SMILES strings for random molecule generation
 SAMPLE_SMILES = [
     'CC(=O)OC1=CC=CC=C1C(=O)O',  # Aspirin
@@ -29,6 +36,17 @@ SAMPLE_SMILES = [
     'CC(C)(C)NCC(O)C1=CC(O)=CC(O)=C1',  # Salbutamol
     'CC1=C(C=C(C=C1)O)C(=O)CC2=CC=C(C=C2)O',  # Benzestrol
 ]
+
+# Store uploaded SMILES data
+uploaded_smiles = {}
+
+def save_uploaded_file(file):
+    """Save uploaded file to the uploads directory with timestamp"""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"{timestamp}_{file.filename}"
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+    return filepath
 
 def make_api_call(client, model_type, message):
     try:
@@ -88,6 +106,64 @@ def home():
         session['conversation'] = []
     return render_template('index.html', conversation=session['conversation'])
 
+@app.route('/upload_csv', methods=['POST'])
+def upload_csv():
+    try:
+        if 'file' not in request.files:
+            print("No file in request")
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['file']
+        if not file.filename.endswith('.csv'):
+            print(f"Invalid file type: {file.filename}")
+            return jsonify({'error': 'Please upload a CSV file'}), 400
+
+        # Save the file
+        filepath = save_uploaded_file(file)
+        print(f"Saved file to: {filepath}")
+
+        # Read CSV file
+        df = pd.read_csv(filepath)
+        print(f"Loaded CSV with columns: {df.columns.tolist()}")
+        
+        # Look for SMILES column (case-insensitive)
+        smiles_col = None
+        for col in df.columns:
+            if col.upper() == 'SMILES':
+                smiles_col = col
+                break
+                
+        if not smiles_col:
+            print("No SMILES column found")
+            return jsonify({'error': 'CSV file must contain a SMILES column'}), 400
+
+        # Store SMILES data with indices
+        global uploaded_smiles
+        uploaded_smiles.clear()  # Clear previous data
+        
+        # Iterate through rows and store valid SMILES
+        valid_count = 0
+        for idx, row in df.iterrows():
+            if pd.notna(row[smiles_col]):
+                smiles = str(row[smiles_col]).strip()
+                # Validate SMILES string
+                mol = Chem.MolFromSmiles(smiles)
+                if mol is not None:
+                    valid_count += 1
+                    uploaded_smiles[valid_count] = smiles
+        
+        print(f"Stored {len(uploaded_smiles)} valid SMILES entries")
+        print(f"First few entries: {dict(list(uploaded_smiles.items())[:3])}")
+        
+        return jsonify({
+            'message': f'Successfully loaded {len(uploaded_smiles)} valid molecules',
+            'count': len(uploaded_smiles)
+        })
+
+    except Exception as e:
+        print(f"Error in upload_csv: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/chat', methods=['POST'])
 def chat():
     if 'conversation' not in session:
@@ -98,10 +174,64 @@ def chat():
     
     try:
         # Check for special commands first
-        if user_input.lower() == "show molecule":
-            response_text = "Here's a random molecule for you!"
-            # Generate and emit molecule separately
-            socketio.emit('trigger_molecule')
+        if user_input.lower().startswith("show molecule"):
+            try:
+                # Extract molecule number if provided
+                parts = user_input.lower().split()
+                if len(parts) > 2:
+                    mol_num = int(parts[2])
+                    print(f"Requested molecule {mol_num}")
+                    print(f"Available molecules: {list(uploaded_smiles.keys())}")
+                    
+                    if mol_num in uploaded_smiles:
+                        # Generate molecule from uploaded SMILES
+                        smiles = uploaded_smiles[mol_num]
+                        print(f"Found SMILES: {smiles}")
+                        mol = Chem.MolFromSmiles(smiles)
+                        if mol is None:
+                            print(f"Failed to parse SMILES: {smiles}")
+                            return jsonify({'error': f'Invalid SMILES string for molecule {mol_num}'}), 400
+                            
+                        # Generate 2D coordinates for better visualization
+                        AllChem.Compute2DCoords(mol)
+                    else:
+                        print(f"Molecule {mol_num} not found")
+                        return jsonify({'error': f'Molecule {mol_num} not found. Available range: 1-{len(uploaded_smiles)}'}), 404
+                else:
+                    # Generate random molecule if no number provided
+                    mol = generate_random_molecule()
+                    smiles = Chem.MolToSmiles(mol)
+                    print("Generated random molecule")
+
+                if mol:
+                    # Create a larger image with white background
+                    img = Draw.MolToImage(mol, size=(400, 400), bgcolor=[255,255,255])
+                    
+                    # Convert image to base64
+                    buffered = BytesIO()
+                    img.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode()
+                    
+                    # Calculate molecular weight
+                    mol_weight = Descriptors.ExactMolWt(mol)
+                    print(f"Successfully generated image for molecule")
+                    
+                    return jsonify({
+                        'type': 'molecule',
+                        'image': img_str,
+                        'smiles': smiles,
+                        'molecular_weight': f"{mol_weight:.2f}",
+                        'index': mol_num
+                    })
+                else:
+                    print("Failed to generate molecule image")
+                    return jsonify({'error': 'Failed to generate molecule'}), 500
+            except ValueError as e:
+                print(f"Invalid molecule number: {str(e)}")
+                return jsonify({'error': 'Please provide a valid molecule number (e.g., "show molecule 1")'}), 400
+            except Exception as e:
+                print(f"Error in show molecule: {str(e)}")
+                return jsonify({'error': f'Error processing molecule: {str(e)}'}), 500
         elif user_input.lower() == "show plot":
             response_text = "Here's an interactive plot for you!"
             # Generate and emit plot separately
@@ -125,6 +255,7 @@ def chat():
         return jsonify({'response': response_text})
 
     except Exception as e:
+        print(f"Error in chat: {str(e)}")
         return jsonify({'response': f"An error occurred: {str(e)}"})
 
 @app.route('/clear_chat', methods=['POST'])

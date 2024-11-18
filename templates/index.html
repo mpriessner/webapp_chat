@@ -379,67 +379,95 @@
             font-style: italic;
         }
 
-        .file-input-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 20px;
-        }
-
         .file-input-box {
             width: 100%;
-            height: 150px;
-            border: 2px dashed var(--border-color);
+            padding: 20px;
+            border: 2px solid var(--border-color);
             border-radius: var(--radius);
+            background: white;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+            gap: 15px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .file-input-button {
+            padding: 8px 16px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
             cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s ease;
         }
 
-        .file-input-box i {
-            font-size: 2em;
-            margin-bottom: 10px;
+        .file-input-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
 
-        .file-input-box p {
-            font-size: 1.2em;
-            color: #666;
+        .file-input-button:not(:disabled):hover {
+            background-color: var(--primary-hover);
         }
 
         .file-list {
-            margin-top: 20px;
+            width: 100%;
+            margin-top: 10px;
         }
 
         .file-item {
             display: flex;
+            justify-content: space-between;
             align-items: center;
-            gap: 10px;
-            padding: 10px;
-            border-bottom: 1px solid var(--border-color);
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: var(--radius);
+            margin-bottom: 5px;
         }
 
-        .file-item:last-child {
-            border-bottom: none;
+        .file-path {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-right: 10px;
+            font-size: 12px;
         }
 
-        .file-item span {
-            font-size: 1.1em;
-        }
-
-        .file-item button {
+        .remove-file {
             background: none;
             border: none;
-            font-size: 1.2em;
+            color: #dc3545;
             cursor: pointer;
-            padding: 5px;
-            opacity: 0.7;
-            transition: opacity 0.3s;
+            font-size: 18px;
+            padding: 0 5px;
         }
 
-        .file-item button:hover {
-            opacity: 1;
+        .upload-status {
+            width: 100%;
+            padding: 10px;
+            border-radius: var(--radius);
+            text-align: center;
+            display: none;
+        }
+
+        .upload-status.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+
+        .upload-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
         }
     </style>
 </head>
@@ -481,18 +509,27 @@
                 </div>
             </div>
 
-            <!-- Top Right Box - File Input 2 -->
+            <!-- Top Right Box - File Input -->
             <div class="visualization-container" id="vis-container-2">
                 <div class="visualization-header">
-                    <div class="tab-container">
-                        <button class="visualization-tab active">Input File 2</button>
-                    </div>
+                    <span>File Input</span>
                     <button class="close-visualization" data-container="2">&times;</button>
                 </div>
                 <div class="visualization-content" id="vis-content-2">
-                    <div class="content-placeholder">
-                        <i class="fas fa-file-upload fa-2x mb-2"></i>
-                        <p>Ready for file input</p>
+                    <div class="file-input-box">
+                        <i class="fas fa-file-upload fa-2x"></i>
+                        <p>Select CSV file with SMILES column</p>
+                        <div class="button-group">
+                            <input type="file" id="file-input-2" accept=".csv" style="display: none;" onchange="handleFileSelect(event, 2)">
+                            <button class="file-input-button" onclick="document.getElementById('file-input-2').click()">
+                                Choose File
+                            </button>
+                            <button id="upload-button-2" class="file-input-button" disabled onclick="uploadSelectedFile(2)">
+                                Upload File
+                            </button>
+                        </div>
+                        <div id="upload-status-2" class="upload-status"></div>
+                        <div id="file-list-2" class="file-list"></div>
                     </div>
                 </div>
             </div>
@@ -618,7 +655,7 @@
                 })
                 .then(response => response.json())
                 .then(data => {
-                    appendMessage('bot', data.response);
+                    handleChatResponse(data);
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -650,43 +687,42 @@
             socket.emit('trigger_plot');
         });
 
-        function showFileInput(containerId) {
-            const content = document.getElementById(`vis-content-${containerId}`);
-            content.innerHTML = `
-                <div class="file-input-container">
-                    <div class="file-input-box" id="file-drop-${containerId}">
-                        <i class="fas fa-file-upload"></i>
-                        <p>Drag & drop files here or click to select</p>
-                        <input type="file" id="file-input-${containerId}" multiple style="display: none;">
-                    </div>
-                    <div class="file-list" id="file-list-${containerId}"></div>
-                </div>
-            `;
-
-            // Setup file input handlers
-            const dropZone = document.getElementById(`file-drop-${containerId}`);
-            const fileInput = document.getElementById(`file-input-${containerId}`);
+        function handleChatResponse(data) {
+            if (data.error) {
+                appendMessage('bot', `Error: ${data.error}`);
+                return;
+            }
             
-            dropZone.onclick = () => fileInput.click();
-            
-            fileInput.onchange = (e) => {
-                handleFiles(e.target.files, containerId);
-            };
-            
-            dropZone.ondragover = (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--primary-color)';
-            };
-            
-            dropZone.ondragleave = () => {
-                dropZone.style.borderColor = 'var(--border-color)';
-            };
-            
-            dropZone.ondrop = (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--border-color)';
-                handleFiles(e.dataTransfer.files, containerId);
-            };
+            if (data.type === 'molecule') {
+                // Display molecule image
+                const moleculeContainer = document.getElementById('vis-content-4');
+                if (moleculeContainer) {
+                    const img = new Image();
+                    img.src = 'data:image/png;base64,' + data.image;
+                    img.style.maxWidth = '100%';
+                    img.style.height = 'auto';
+                    
+                    // Create info text with molecule index
+                    const info = document.createElement('div');
+                    info.style.marginTop = '10px';
+                    info.style.textAlign = 'center';
+                    info.innerHTML = `
+                        <strong>Molecule ${data.index}</strong><br>
+                        SMILES: ${data.smiles}<br>
+                        Molecular Weight: ${data.molecular_weight} g/mol
+                    `;
+                    
+                    // Clear previous content and add new
+                    moleculeContainer.innerHTML = '';
+                    moleculeContainer.appendChild(img);
+                    moleculeContainer.appendChild(info);
+                    
+                    // Add success message to chat
+                    appendMessage('bot', `Displaying molecule ${data.index}`);
+                }
+            } else if (data.response) {
+                appendMessage('bot', data.response);
+            }
         }
 
         socket.on('molecule_response', (data) => {
@@ -862,23 +898,99 @@
         });
 
         // File handling
-        function handleFiles(files, containerId) {
+        function handleFileSelect(event, containerId) {
+            const files = event.target.files;
+            const uploadButton = document.getElementById(`upload-button-${containerId}`);
+            const uploadStatus = document.getElementById(`upload-status-${containerId}`);
             const fileList = document.getElementById(`file-list-${containerId}`);
             
-            Array.from(files).forEach(file => {
+            console.log('File selection triggered');
+            
+            // Clear previous status and file list
+            uploadStatus.className = 'upload-status';
+            fileList.innerHTML = '';
+            
+            if (files && files.length > 0) {
+                const file = files[0];
+                console.log('File selected:', file.name);
+                
+                // Create file item
                 const fileItem = document.createElement('div');
                 fileItem.className = 'file-item';
                 
-                const fileName = document.createElement('span');
-                fileName.textContent = file.name;
+                // Add file name
+                const filePath = document.createElement('span');
+                filePath.className = 'file-path';
+                filePath.textContent = file.name;
+                fileItem.appendChild(filePath);
                 
+                // Add remove button
                 const removeBtn = document.createElement('button');
+                removeBtn.className = 'remove-file';
                 removeBtn.innerHTML = '&times;';
-                removeBtn.onclick = () => fileItem.remove();
-                
-                fileItem.appendChild(fileName);
+                removeBtn.onclick = () => {
+                    fileItem.remove();
+                    event.target.value = '';
+                    uploadButton.disabled = true;
+                    uploadStatus.className = 'upload-status';
+                };
                 fileItem.appendChild(removeBtn);
+                
+                // Add to file list
                 fileList.appendChild(fileItem);
+                
+                // Enable upload button if it's a CSV file
+                uploadButton.disabled = !file.name.endsWith('.csv');
+                if (!file.name.endsWith('.csv')) {
+                    uploadStatus.textContent = 'Please select a CSV file';
+                    uploadStatus.className = 'upload-status error';
+                }
+            } else {
+                uploadButton.disabled = true;
+            }
+        }
+
+        function uploadSelectedFile(containerId) {
+            const fileInput = document.getElementById(`file-input-${containerId}`);
+            const uploadStatus = document.getElementById(`upload-status-${containerId}`);
+            const uploadButton = document.getElementById(`upload-button-${containerId}`);
+            
+            if (!fileInput.files.length) {
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Show upload status
+            uploadButton.disabled = true;
+            uploadStatus.textContent = 'Uploading...';
+            uploadStatus.className = 'upload-status';
+            
+            fetch('/upload_csv', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error('Error:', data.error);
+                    uploadStatus.textContent = `Error: ${data.error}`;
+                    uploadStatus.className = 'upload-status error';
+                    uploadButton.disabled = false;
+                } else {
+                    console.log('Success:', data);
+                    uploadStatus.textContent = data.message;
+                    uploadStatus.className = 'upload-status success';
+                    appendMessage('bot', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                uploadStatus.textContent = 'Error uploading file';
+                uploadStatus.className = 'upload-status error';
+                uploadButton.disabled = false;
             });
         }
 
@@ -952,6 +1064,31 @@
         }
 
         micButton.addEventListener('click', toggleRecording);
+
+        function showFileInput(containerId) {
+            const content = document.getElementById(`vis-content-${containerId}`);
+            
+            // Only set up the file input for container 1, leave container 2 as is
+            if (containerId === 1) {
+                content.innerHTML = `
+                    <div class="file-input-box">
+                        <i class="fas fa-file-upload fa-2x"></i>
+                        <p>Select CSV file with SMILES column</p>
+                        <div class="button-group">
+                            <input type="file" id="file-input-1" accept=".csv" style="display: none;" onchange="handleFileSelect(event, 1)">
+                            <button class="file-input-button" onclick="document.getElementById('file-input-1').click()">
+                                Choose File
+                            </button>
+                            <button id="upload-button-1" class="file-input-button" disabled onclick="uploadSelectedFile(1)">
+                                Upload File
+                            </button>
+                        </div>
+                        <div id="upload-status-1" class="upload-status"></div>
+                        <div id="file-list-1" class="file-list"></div>
+                    </div>
+                `;
+            }
+        }
 
         showFileInput(1);
         showFileInput(2);

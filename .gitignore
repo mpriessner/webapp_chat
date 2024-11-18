@@ -39,3 +39,6 @@ config.py
 
 # Logs
 *.log
+
+# Uploaded files
+uploads/
