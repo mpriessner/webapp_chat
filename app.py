@@ -379,5 +379,7 @@ def handle_plot_request():
         print(f"Error generating plot: {str(e)}")
         socketio.emit('error', {'message': 'Failed to generate plot'})
 
+
 if __name__ == '__main__':
-    socketio.run(app, debug=True)
+    # Change to host=0.0.0.0 to allow external access
+    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
