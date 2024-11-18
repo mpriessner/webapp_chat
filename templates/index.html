@@ -882,33 +882,6 @@
             });
         }
 
-        // Setup file input handlers
-        [1, 2].forEach(id => {
-            const dropZone = document.getElementById(`file-drop-${id}`);
-            const fileInput = document.getElementById(`file-input-${id}`);
-            
-            dropZone.onclick = () => fileInput.click();
-            
-            fileInput.onchange = (e) => {
-                handleFiles(e.target.files, id);
-            };
-            
-            dropZone.ondragover = (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--primary-color)';
-            };
-            
-            dropZone.ondragleave = () => {
-                dropZone.style.borderColor = 'var(--border-color)';
-            };
-            
-            dropZone.ondrop = (e) => {
-                e.preventDefault();
-                dropZone.style.borderColor = 'var(--border-color)';
-                handleFiles(e.dataTransfer.files, id);
-            };
-        });
-
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
@@ -917,9 +890,7 @@
             if (!isRecording) {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm;codecs=opus'
-                    });
+                    mediaRecorder = new MediaRecorder(stream);
                     audioChunks = [];
 
                     mediaRecorder.ondataavailable = (event) => {
@@ -927,42 +898,36 @@
                     };
 
                     mediaRecorder.onstop = async () => {
-                        // Convert to WAV format
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                        const reader = new FileReader();
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        const formData = new FormData();
+                        formData.append('audio', audioBlob, 'recording.wav');
+                        formData.append('model_choice', modelSelect.value);
 
-                        reader.onload = async function(e) {
-                            const audioBuffer = await audioContext.decodeAudioData(e.target.result);
-                            const wavBlob = await audioBufferToWav(audioBuffer);
+                        try {
+                            const response = await fetch('/transcribe', {
+                                method: 'POST',
+                                body: formData
+                            });
 
-                            const formData = new FormData();
-                            formData.append('audio', wavBlob, 'recording.wav');
-                            formData.append('model_choice', modelSelect.value);
-
-                            try {
-                                const response = await fetch('/transcribe', {
-                                    method: 'POST',
-                                    body: formData
-                                });
-
-                                if (response.ok) {
-                                    const data = await response.json();
-                                    if (data.text) {
-                                        messageInput.value = data.text;
-                                        sendButton.click();
-                                    }
+                            if (response.ok) {
+                                const data = await response.json();
+                                console.log('Transcription response:', data);
+                                if (data.text) {
+                                    messageInput.value = data.text;
+                                    sendButton.click();
                                 } else {
-                                    console.error('Transcription failed');
+                                    console.error('No text in transcription response');
                                     appendMessage('bot', 'Failed to transcribe audio. Please try again.');
                                 }
-                            } catch (error) {
-                                console.error('Error:', error);
-                                appendMessage('bot', 'An error occurred while processing your audio.');
+                            } else {
+                                console.error('Transcription failed:', await response.text());
+                                appendMessage('bot', 'Failed to transcribe audio. Please try again.');
                             }
-                        };
+                        } catch (error) {
+                            console.error('Error:', error);
+                            appendMessage('bot', 'An error occurred while processing your audio.');
+                        }
 
-                        reader.readAsArrayBuffer(audioBlob);
                         // Clean up
                         stream.getTracks().forEach(track => track.stop());
                     };
@@ -987,65 +952,6 @@
         }
 
         micButton.addEventListener('click', toggleRecording);
-
-        // Function to convert AudioBuffer to WAV format
-        function audioBufferToWav(buffer) {
-            const numOfChan = buffer.numberOfChannels;
-            const length = buffer.length * numOfChan * 2;
-            const result = new ArrayBuffer(44 + length);
-            const view = new DataView(result);
-
-            // RIFF identifier 'RIFF'
-            writeString(view, 0, 'RIFF');
-            // File length minus RIFF identifier length and file description length
-            view.setUint32(4, 36 + length, true);
-            // RIFF type 'WAVE'
-            writeString(view, 8, 'WAVE');
-            // Format chunk identifier 'fmt '
-            writeString(view, 12, 'fmt ');
-            // Format chunk length
-            view.setUint32(16, 16, true);
-            // Sample format (raw)
-            view.setUint16(20, 1, true);
-            // Channel count
-            view.setUint16(22, numOfChan, true);
-            // Sample rate
-            view.setUint32(24, buffer.sampleRate, true);
-            // Byte rate (sample rate * block align)
-            view.setUint32(28, buffer.sampleRate * 2 * numOfChan, true);
-            // Block align (channel count * bytes per sample)
-            view.setUint16(32, numOfChan * 2, true);
-            // Bits per sample
-            view.setUint16(34, 16, true);
-            // Data chunk identifier 'data'
-            writeString(view, 36, 'data');
-            // Data chunk length
-            view.setUint32(40, length, true);
-
-            // Write the PCM samples
-            const offset = 44;
-            const channelData = [];
-            for (let i = 0; i < buffer.numberOfChannels; i++) {
-                channelData.push(buffer.getChannelData(i));
-            }
-
-            let pos = 44;
-            for (let i = 0; i < buffer.length; i++) {
-                for (let ch = 0; ch < numOfChan; ch++) {
-                    const sample = Math.max(-1, Math.min(1, channelData[ch][i]));
-                    view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-                    pos += 2;
-                }
-            }
-
-            return new Blob([result], { type: 'audio/wav' });
-        }
-
-        function writeString(view, offset, string) {
-            for (let i = 0; i < string.length; i++) {
-                view.setUint8(offset + i, string.charCodeAt(i));
-            }
-        }
 
         showFileInput(1);
         showFileInput(2);

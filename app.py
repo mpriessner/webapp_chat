@@ -136,33 +136,43 @@ def clear_chat():
 def transcribe_audio():
     try:
         if 'audio' not in request.files:
+            print("No audio file in request")
             return jsonify({'error': 'No audio file provided'}), 400
 
         audio_file = request.files['audio']
-        
+        if not audio_file:
+            print("Audio file is empty")
+            return jsonify({'error': 'Empty audio file'}), 400
+
         # Save the file temporarily
         temp_path = 'temp_audio.wav'
         audio_file.save(temp_path)
         
         try:
+            print("Starting transcription...")
             # Transcribe using OpenAI's Whisper API
             with open(temp_path, 'rb') as audio:
-                response = openai_client.audio.transcriptions.create(
+                transcript = openai_client.audio.transcriptions.create(
                     model="whisper-1",
                     file=audio,
                     response_format="text"
                 )
-                
-            return jsonify({'text': response})
             
+            print(f"Transcription result: {transcript}")
+            return jsonify({'text': transcript})
+            
+        except Exception as e:
+            print(f"Error during transcription: {str(e)}")
+            return jsonify({'error': f'Transcription error: {str(e)}'}), 500
         finally:
             # Clean up the temporary file
             import os
             if os.path.exists(temp_path):
                 os.remove(temp_path)
+                print("Temporary file removed")
             
     except Exception as e:
-        print(f"Transcription error: {str(e)}")
+        print(f"General error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/text-to-speech', methods=['POST'])
