@@ -670,13 +670,23 @@
         socket.on('molecule_response', (data) => {
             const content = document.getElementById('vis-content-4');
             
-            // Clear previous content
-            content.innerHTML = '';
+            // Remove placeholder if it exists
+            const placeholder = content.querySelector('.content-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
             
-            // Create molecule panel
-            const moleculePanel = document.createElement('div');
-            moleculePanel.className = 'visualization-panel active';
-            moleculePanel.id = 'molecule-panel-4';
+            // Create or update molecule panel
+            let moleculePanel = document.getElementById('molecule-panel-4');
+            if (!moleculePanel) {
+                moleculePanel = document.createElement('div');
+                moleculePanel.className = 'visualization-panel';
+                moleculePanel.id = 'molecule-panel-4';
+                content.appendChild(moleculePanel);
+            }
+            
+            // Update molecule content
+            moleculePanel.innerHTML = '';
             
             // Create and add image
             const img = document.createElement('img');
@@ -699,30 +709,86 @@
             infoDiv.appendChild(weightP);
             
             moleculePanel.appendChild(infoDiv);
-            content.appendChild(moleculePanel);
+            
+            // Show molecule panel and update tabs
+            document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            moleculePanel.classList.add('active');
+            
+            // Update tab states
+            const tabs = document.querySelectorAll('#vis-container-4 .visualization-tab');
+            tabs.forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.panel === 'molecule');
+            });
         });
 
         socket.on('graph_response', (data) => {
             const content = document.getElementById('vis-content-4');
             
-            // Clear previous content
-            content.innerHTML = '';
+            // Remove placeholder if it exists
+            const placeholder = content.querySelector('.content-placeholder');
+            if (placeholder) {
+                placeholder.remove();
+            }
             
-            // Create plot panel
-            const plotPanel = document.createElement('div');
-            plotPanel.className = 'visualization-panel active';
-            plotPanel.id = 'plot-panel-4';
+            // Create or update plot panel
+            let plotPanel = document.getElementById('plot-panel-4');
+            if (!plotPanel) {
+                plotPanel = document.createElement('div');
+                plotPanel.className = 'visualization-panel';
+                plotPanel.id = 'plot-panel-4';
+                content.appendChild(plotPanel);
+            }
+            
+            // Update plot content
+            plotPanel.innerHTML = '';
             
             const plotContainer = document.createElement('div');
             plotContainer.id = 'plot-container-4';
             plotPanel.appendChild(plotContainer);
-            content.appendChild(plotPanel);
+            
+            // Show plot panel and update tabs
+            document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
+                panel.classList.remove('active');
+            });
+            plotPanel.classList.add('active');
+            
+            // Update tab states
+            const tabs = document.querySelectorAll('#vis-container-4 .visualization-tab');
+            tabs.forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.panel === 'plot');
+            });
             
             // Create plot
             setTimeout(() => {
                 Plotly.newPlot('plot-container-4', data.data, data.layout);
                 window.dispatchEvent(new Event('resize'));
             }, 0);
+        });
+
+        // Tab switching handler
+        document.querySelectorAll('#vis-container-4 .visualization-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const panelType = e.target.dataset.panel;
+                
+                // Update tabs
+                const tabContainer = e.target.closest('.tab-container');
+                tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
+                    t.classList.toggle('active', t.dataset.panel === panelType);
+                });
+                
+                // Update panels
+                const content = document.getElementById('vis-content-4');
+                content.querySelectorAll('.visualization-panel').forEach(panel => {
+                    panel.classList.toggle('active', panel.id === `${panelType}-panel-4`);
+                });
+                
+                // Trigger resize for plots
+                if (panelType === 'plot') {
+                    window.dispatchEvent(new Event('resize'));
+                }
+            });
         });
 
         // Close button handler - now minimizes instead of hiding
@@ -756,50 +822,6 @@
                     `;
                 }
             });
-        });
-
-        // Add tab switching functionality
-        function activateTab(panelName) {
-            // Update tabs
-            document.querySelectorAll('.visualization-tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.panel === panelName);
-            });
-
-            // Update panels
-            document.querySelectorAll('.visualization-panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
-            
-            const targetPanel = document.getElementById(panelName + '-panel');
-            targetPanel.classList.add('active');
-
-            // If switching to plot tab, trigger a resize to ensure proper layout
-            if (panelName === 'plot') {
-                window.dispatchEvent(new Event('resize'));
-            }
-        }
-
-        // Add event listeners for tab switching
-        document.querySelectorAll('.visualization-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                activateTab(tab.dataset.panel);
-            });
-        });
-
-        // Update window resize handler for plot
-        window.addEventListener('resize', () => {
-            const plotPanel = document.getElementById('plot-panel');
-            if (plotPanel.classList.contains('active')) {
-                const container = document.getElementById('visualization-container');
-                const width = container.clientWidth - 40;  /* Account for padding */
-                const height = container.clientHeight - 100;  /* Account for header and padding */
-                
-                Plotly.relayout('plot-container', {
-                    width: width,
-                    height: height,
-                    autosize: true
-                });
-            }
         });
 
         // File handling
