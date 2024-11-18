@@ -264,14 +264,10 @@
             display: none;
             width: 100%;
             height: 100%;
-            overflow: auto;
-            padding: 10px;
         }
 
         .visualization-panel.active {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            display: block;
         }
 
         .visualization-panel img {
@@ -554,7 +550,7 @@
             <div class="visualization-container" id="vis-container-4">
                 <div class="visualization-header">
                     <div class="tab-container">
-                        <button class="visualization-tab active" data-panel="molecule">Molecule</button>
+                        <button class="visualization-tab" data-panel="molecule">Molecule</button>
                         <button class="visualization-tab" data-panel="plot">Plot</button>
                     </div>
                     <button class="close-visualization" data-container="4">&times;</button>
@@ -792,21 +788,6 @@
 
         socket.on('graph_response', (data) => {
             const content = document.getElementById('vis-content-4');
-            const containerRect = content.getBoundingClientRect();
-            
-            // Calculate available space with more padding and smaller proportions
-            const availableWidth = Math.min(containerRect.width * 0.85, containerRect.width - 80); // 20% smaller width
-            const availableHeight = Math.min(containerRect.height * 0.8, containerRect.height - 100); // 20% smaller height
-            
-            // Update layout with calculated dimensions and larger margins
-            const layout = {
-                ...data.layout,
-                width: availableWidth,
-                height: availableHeight,
-                margin: { t: 30, r: 30, b: 50, l: 60 }, // Increased margins
-                autosize: true,
-                font: { size: 10 } // Smaller font size
-            };
             
             // Remove placeholder if it exists
             const placeholder = content.querySelector('.content-placeholder');
@@ -814,25 +795,38 @@
                 placeholder.remove();
             }
             
-            // Create or update plot panel
+            // Create or get plot panel
             let plotPanel = document.getElementById('plot-panel-4');
             if (!plotPanel) {
                 plotPanel = document.createElement('div');
                 plotPanel.className = 'visualization-panel';
                 plotPanel.id = 'plot-panel-4';
-                plotPanel.style.width = '100%';
-                plotPanel.style.height = '100%';
                 content.appendChild(plotPanel);
             }
             
-            // Update plot content
-            plotPanel.innerHTML = '';
+            // Calculate container dimensions
+            const containerRect = content.getBoundingClientRect();
+            const availableWidth = Math.min(containerRect.width * 0.85, containerRect.width - 80);
+            const availableHeight = Math.min(containerRect.height * 0.8, containerRect.height - 100);
             
-            const plotContainer = document.createElement('div');
-            plotContainer.id = 'plot-container-4';
-            plotContainer.style.width = '100%';
-            plotContainer.style.height = '100%';
-            plotPanel.appendChild(plotContainer);
+            // Update layout with calculated dimensions
+            const layout = {
+                ...data.layout,
+                width: availableWidth,
+                height: availableHeight,
+                margin: {
+                    l: 50,
+                    r: 30,
+                    t: 50,
+                    b: 50
+                }
+            };
+            
+            // Create plot
+            Plotly.newPlot(plotPanel, data.data, layout, {
+                displayModeBar: true,
+                responsive: true
+            });
             
             // Show plot panel and update tabs
             document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
@@ -845,27 +839,18 @@
             tabs.forEach(tab => {
                 tab.classList.toggle('active', tab.dataset.panel === 'plot');
             });
-            
-            // Create plot with responsive layout
-            setTimeout(() => {
-                Plotly.newPlot('plot-container-4', data.data, layout, {
-                    responsive: true,
-                    useResizeHandler: true
-                });
-            }, 0);
         });
 
         // Update window resize handler with new calculations
         window.addEventListener('resize', () => {
-            const plotContainer = document.getElementById('plot-container-4');
-            if (plotContainer) {
+            const plotPanel = document.getElementById('plot-panel-4');
+            if (plotPanel && plotPanel.classList.contains('active')) {
                 const content = document.getElementById('vis-content-4');
                 const containerRect = content.getBoundingClientRect();
-                
                 const availableWidth = Math.min(containerRect.width * 0.85, containerRect.width - 80);
                 const availableHeight = Math.min(containerRect.height * 0.8, containerRect.height - 100);
                 
-                Plotly.relayout('plot-container-4', {
+                Plotly.relayout(plotPanel, {
                     width: availableWidth,
                     height: availableHeight
                 });
@@ -881,17 +866,20 @@
                 // Update tabs
                 const tabContainer = e.target.closest('.tab-container');
                 tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
-                    t.classList.toggle('active', t.dataset.panel === panelType);
+                    t.classList.remove('active');
                 });
+                e.target.classList.add('active');
                 
                 // Update panels
                 const content = document.getElementById(`vis-content-${containerNum}`);
-                content.querySelectorAll('.visualization-panel').forEach(panel => {
-                    panel.classList.toggle('active', panel.id.includes(panelType));
-                });
+                const moleculePanel = document.getElementById('molecule-panel-4');
+                const plotPanel = document.getElementById('plot-panel-4');
+                
+                if (moleculePanel) moleculePanel.classList.toggle('active', panelType === 'molecule');
+                if (plotPanel) plotPanel.classList.toggle('active', panelType === 'plot');
                 
                 // Trigger resize for plots
-                if (panelType.includes('plot')) {
+                if (panelType === 'plot' && plotPanel) {
                     window.dispatchEvent(new Event('resize'));
                 }
             });
