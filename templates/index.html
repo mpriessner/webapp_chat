@@ -684,37 +684,37 @@
         });
 
         function handleChatResponse(data) {
-            if (data.error) {
-                appendMessage('bot', `Error: ${data.error}`);
-                return;
-            }
-            
             if (data.type === 'molecule') {
-                // Display molecule image
-                const moleculeContainer = document.getElementById('vis-content-4');
-                if (moleculeContainer) {
-                    const img = new Image();
-                    img.src = 'data:image/png;base64,' + data.image;
-                    img.style.maxWidth = '100%';
-                    img.style.height = 'auto';
+                socket.emit('trigger_molecule');
+            } else if (data.type === 'plot') {
+                // Switch to plot tab first
+                const plotTab = document.querySelector('#vis-container-4 .visualization-tab[data-panel="plot"]');
+                if (plotTab) {
+                    plotTab.classList.add('active');
+                    // Update other tabs
+                    const tabContainer = plotTab.closest('.tab-container');
+                    tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
+                        if (t !== plotTab) t.classList.remove('active');
+                    });
                     
-                    // Create info text with molecule index
-                    const info = document.createElement('div');
-                    info.style.marginTop = '10px';
-                    info.style.textAlign = 'center';
-                    info.innerHTML = `
-                        <strong>Molecule ${data.index}</strong><br>
-                        SMILES: ${data.smiles}<br>
-                        Molecular Weight: ${data.molecular_weight} g/mol
-                    `;
+                    // Hide all panels and show plot panel
+                    document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
+                        panel.classList.remove('active');
+                        panel.innerHTML = '';
+                    });
                     
-                    // Clear previous content and add new
-                    moleculeContainer.innerHTML = '';
-                    moleculeContainer.appendChild(img);
-                    moleculeContainer.appendChild(info);
+                    // Get or create plot panel
+                    let plotPanel = document.getElementById('plot-panel-4');
+                    if (!plotPanel) {
+                        plotPanel = document.createElement('div');
+                        plotPanel.className = 'visualization-panel';
+                        plotPanel.id = 'plot-panel-4';
+                        document.getElementById('vis-content-4').appendChild(plotPanel);
+                    }
+                    plotPanel.classList.add('active');
                     
-                    // Add success message to chat
-                    appendMessage('bot', `Displaying molecule ${data.index}`);
+                    // Trigger plot generation
+                    socket.emit('trigger_plot');
                 }
             } else if (data.response) {
                 appendMessage('bot', data.response);
@@ -724,13 +724,7 @@
         socket.on('molecule_response', (data) => {
             const content = document.getElementById('vis-content-4');
             
-            // Remove placeholder if it exists
-            const placeholder = content.querySelector('.content-placeholder');
-            if (placeholder) {
-                placeholder.remove();
-            }
-            
-            // Create or update molecule panel
+            // Create or get molecule panel
             let moleculePanel = document.getElementById('molecule-panel-4');
             if (!moleculePanel) {
                 moleculePanel = document.createElement('div');
@@ -739,7 +733,7 @@
                 content.appendChild(moleculePanel);
             }
             
-            // Update molecule content
+            // Clear existing content
             moleculePanel.innerHTML = '';
             
             // Create wrapper for image and info
@@ -750,10 +744,15 @@
             wrapper.style.flexDirection = 'column';
             wrapper.style.alignItems = 'center';
             
-            // Create and add image
+            // Create and add image with responsive sizing
             const img = document.createElement('img');
             img.id = 'molecule-image-4';
             img.src = 'data:image/png;base64,' + data.image;
+            img.style.maxWidth = '85%';
+            img.style.maxHeight = '60%';
+            img.style.height = 'auto';
+            img.style.objectFit = 'contain';
+            img.style.margin = '10px auto';
             wrapper.appendChild(img);
             
             // Create info div
@@ -773,36 +772,33 @@
             wrapper.appendChild(infoDiv);
             moleculePanel.appendChild(wrapper);
             
-            // Show molecule panel and update tabs
-            document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
-            moleculePanel.classList.add('active');
-            
-            // Update tab states
-            const tabs = document.querySelectorAll('#vis-container-4 .visualization-tab');
-            tabs.forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.panel === 'molecule');
-            });
+            // Only show if molecule tab is active
+            const moleculeTab = document.querySelector('#vis-container-4 .visualization-tab[data-panel="molecule"]');
+            if (moleculeTab.classList.contains('active')) {
+                document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
+                    if (panel.id !== 'molecule-panel-4') {
+                        panel.classList.remove('active');
+                        panel.innerHTML = '';
+                    }
+                });
+                moleculePanel.classList.add('active');
+            }
         });
 
         socket.on('graph_response', (data) => {
             const content = document.getElementById('vis-content-4');
             
-            // Remove placeholder if it exists
-            const placeholder = content.querySelector('.content-placeholder');
-            if (placeholder) {
-                placeholder.remove();
-            }
-            
             // Create or get plot panel
             let plotPanel = document.getElementById('plot-panel-4');
             if (!plotPanel) {
                 plotPanel = document.createElement('div');
-                plotPanel.className = 'visualization-panel';
+                plotPanel.className = 'visualization-panel active';
                 plotPanel.id = 'plot-panel-4';
                 content.appendChild(plotPanel);
             }
+            
+            // Clear existing content
+            plotPanel.innerHTML = '';
             
             // Calculate container dimensions
             const containerRect = content.getBoundingClientRect();
@@ -828,16 +824,56 @@
                 responsive: true
             });
             
-            // Show plot panel and update tabs
+            // Ensure plot panel is visible
             document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
-                panel.classList.remove('active');
+                if (panel.id !== 'plot-panel-4') {
+                    panel.classList.remove('active');
+                    panel.innerHTML = '';
+                }
             });
             plotPanel.classList.add('active');
             
-            // Update tab states
-            const tabs = document.querySelectorAll('#vis-container-4 .visualization-tab');
-            tabs.forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.panel === 'plot');
+            // Ensure plot tab is active
+            const plotTab = document.querySelector('#vis-container-4 .visualization-tab[data-panel="plot"]');
+            if (plotTab) {
+                const tabs = document.querySelectorAll('#vis-container-4 .visualization-tab');
+                tabs.forEach(tab => tab.classList.remove('active'));
+                plotTab.classList.add('active');
+            }
+        });
+
+        // Tab switching handler
+        document.querySelectorAll('.visualization-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                const containerNum = e.target.closest('.visualization-container').id.split('-')[2];
+                const panelType = e.target.dataset.panel;
+                
+                // Update tabs
+                const tabContainer = e.target.closest('.tab-container');
+                tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
+                    t.classList.remove('active');
+                });
+                e.target.classList.add('active');
+                
+                // Hide all panels first
+                document.querySelectorAll('#vis-container-4 .visualization-panel').forEach(panel => {
+                    panel.classList.remove('active');
+                    // Clear panel content when switching
+                    panel.innerHTML = '';
+                });
+                
+                const targetPanel = document.getElementById(`${panelType}-panel-4`);
+                if (targetPanel) {
+                    targetPanel.classList.add('active');
+                    // If switching to plot tab, trigger a new plot request
+                    if (panelType === 'plot') {
+                        socket.emit('trigger_plot');
+                    }
+                    // If switching to molecule tab, trigger a new molecule request
+                    else if (panelType === 'molecule') {
+                        socket.emit('trigger_molecule');
+                    }
+                }
             });
         });
 
@@ -855,34 +891,6 @@
                     height: availableHeight
                 });
             }
-        });
-
-        // Tab switching handler
-        document.querySelectorAll('.visualization-tab').forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                const containerNum = e.target.closest('.visualization-container').id.split('-')[2];
-                const panelType = e.target.dataset.panel;
-                
-                // Update tabs
-                const tabContainer = e.target.closest('.tab-container');
-                tabContainer.querySelectorAll('.visualization-tab').forEach(t => {
-                    t.classList.remove('active');
-                });
-                e.target.classList.add('active');
-                
-                // Update panels
-                const content = document.getElementById(`vis-content-${containerNum}`);
-                const moleculePanel = document.getElementById('molecule-panel-4');
-                const plotPanel = document.getElementById('plot-panel-4');
-                
-                if (moleculePanel) moleculePanel.classList.toggle('active', panelType === 'molecule');
-                if (plotPanel) plotPanel.classList.toggle('active', panelType === 'plot');
-                
-                // Trigger resize for plots
-                if (panelType === 'plot' && plotPanel) {
-                    window.dispatchEvent(new Event('resize'));
-                }
-            });
         });
 
         // File handling

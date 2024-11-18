@@ -175,67 +175,9 @@ def chat():
     try:
         # Check for special commands first
         if user_input.lower().startswith("show molecule"):
-            try:
-                # Extract molecule number if provided
-                parts = user_input.lower().split()
-                if len(parts) > 2:
-                    mol_num = int(parts[2])
-                    print(f"Requested molecule {mol_num}")
-                    print(f"Available molecules: {list(uploaded_smiles.keys())}")
-                    
-                    if mol_num in uploaded_smiles:
-                        # Generate molecule from uploaded SMILES
-                        smiles = uploaded_smiles[mol_num]
-                        print(f"Found SMILES: {smiles}")
-                        mol = Chem.MolFromSmiles(smiles)
-                        if mol is None:
-                            print(f"Failed to parse SMILES: {smiles}")
-                            return jsonify({'error': f'Invalid SMILES string for molecule {mol_num}'}), 400
-                            
-                        # Generate 2D coordinates for better visualization
-                        AllChem.Compute2DCoords(mol)
-                    else:
-                        print(f"Molecule {mol_num} not found")
-                        return jsonify({'error': f'Molecule {mol_num} not found. Available range: 1-{len(uploaded_smiles)}'}), 404
-                else:
-                    # Generate random molecule if no number provided
-                    mol = generate_random_molecule()
-                    smiles = Chem.MolToSmiles(mol)
-                    print("Generated random molecule")
-
-                if mol:
-                    # Create a larger image with white background
-                    img = Draw.MolToImage(mol, size=(400, 400), bgcolor=[255,255,255])
-                    
-                    # Convert image to base64
-                    buffered = BytesIO()
-                    img.save(buffered, format="PNG")
-                    img_str = base64.b64encode(buffered.getvalue()).decode()
-                    
-                    # Calculate molecular weight
-                    mol_weight = Descriptors.ExactMolWt(mol)
-                    print(f"Successfully generated image for molecule")
-                    
-                    return jsonify({
-                        'type': 'molecule',
-                        'image': img_str,
-                        'smiles': smiles,
-                        'molecular_weight': f"{mol_weight:.2f}",
-                        'index': mol_num
-                    })
-                else:
-                    print("Failed to generate molecule image")
-                    return jsonify({'error': 'Failed to generate molecule'}), 500
-            except ValueError as e:
-                print(f"Invalid molecule number: {str(e)}")
-                return jsonify({'error': 'Please provide a valid molecule number (e.g., "show molecule 1")'}), 400
-            except Exception as e:
-                print(f"Error in show molecule: {str(e)}")
-                return jsonify({'error': f'Error processing molecule: {str(e)}'}), 500
-        elif user_input.lower() == "show plot":
-            response_text = "Here's an interactive plot for you!"
-            # Generate and emit plot separately
-            socketio.emit('trigger_plot')
+            return jsonify({'type': 'molecule'})
+        elif user_input.lower().startswith("show plot"):
+            return jsonify({'type': 'plot'})
         else:
             # Get AI response based on selected model
             if model_choice == 'openai':
@@ -362,7 +304,7 @@ def handle_molecule_request():
         mol_weight = Descriptors.ExactMolWt(mol)
         
         # Convert molecule to image
-        img = Draw.MolToImage(mol, size=(400, 400))  # Reduced size
+        img = Draw.MolToImage(mol, size=(300, 300))  # Reduced size
         
         # Save image to bytes
         img_bytes = BytesIO()
