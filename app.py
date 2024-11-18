@@ -259,3 +259,4 @@ def handle_plot_request():
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
+    
